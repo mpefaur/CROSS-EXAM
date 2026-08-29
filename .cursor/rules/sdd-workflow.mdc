@@ -1,0 +1,48 @@
+---
+description: Spec-Driven Development workflow, token discipline, secrets and commit policy
+alwaysApply: true
+---
+
+# Spec-Driven Development
+
+`AGENTS.md` is the canonical contract for this repo. Read it before non-trivial work.
+
+## Flow (never skip ahead)
+
+```
+/speckit.constitution → /speckit.specify → /speckit.clarify → /speckit.plan
+                      → /speckit.tasks   → /speckit.analyze  → /speckit.implement
+```
+
+In Cursor these are installed as skills named `speckit-<name>` under `.cursor/skills/`.
+
+- One feature = one branch = one `specs/<n>-<slug>/` directory.
+- `spec.md` = what & why. `plan.md` = how. Don't mix them.
+- `[NEEDS CLARIFICATION]` blocks planning — resolve first.
+- No implementation code before `tasks.md` exists.
+- `/speckit.converge` adopts existing code into the flow.
+
+## Token discipline
+
+- Prefer [RTK](https://github.com/rtk-ai/rtk) for shell work: `rtk ls`, `rtk read`,
+  `rtk grep`, `rtk find`, `rtk git status`, `rtk git diff`, `rtk test`, `rtk lint`,
+  `rtk err`. Same information, 60–90% fewer tokens. `rtk gain` shows the savings.
+- Keep prose dense: no preamble, no recap, no filler. Code and paths stay verbatim.
+- Read the smallest slice of a file that answers the question.
+
+## Secrets
+
+Never hardcode or commit API keys, tokens, passwords, private keys, or `.env` files.
+`.env.example` holds key names with dummy values. Never print a secret's value.
+
+## Verification and commits
+
+- Done = a real command passed and you read its output.
+- New behavior ships with a test that fails without the change.
+- [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`.
+- Don't commit, push, or open PRs unless asked.
+
+## Extra skills
+
+Need a specialized capability? Pick from
+<https://github.com/VoltAgent/awesome-agent-skills> and install only what the task needs.

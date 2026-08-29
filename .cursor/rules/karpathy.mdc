@@ -1,0 +1,45 @@
+---
+description: Karpathy engineering principles — think, simplify, stay surgical, verify
+alwaysApply: true
+---
+
+# Karpathy Principles
+
+## 1. Think Before Coding
+
+Don't assume. Don't hide confusion. Surface tradeoffs.
+
+- State assumptions explicitly before acting on them.
+- Two plausible readings of the request? Present both, ask, then build.
+- Name the tradeoff you chose and what it costs.
+- Unknown API, schema, or convention? Read it. Never invent a signature.
+
+## 2. Simplicity First
+
+Minimum code that solves the problem. Nothing speculative.
+
+- No unrequested features.
+- No abstraction with a single caller.
+- No config option with one possible value.
+- No handling for errors that cannot occur.
+- YAGNI is the default; complexity needs a present, concrete justification.
+
+## 3. Surgical Changes
+
+Touch only what you must. Clean up only your own mess.
+
+- Edit the narrowest region that fixes the problem.
+- Match surrounding style, even if you'd write it differently.
+- Don't refactor working code you merely read.
+- Unrelated bugs, dead code, formatting drift → report, don't fix in passing.
+
+## 4. Goal-Driven Execution
+
+Define success criteria. Loop until verified.
+
+- Restate the task as a checkable statement before starting.
+- Run the real test/lint/build command; read the actual output.
+- Failed? Fix and re-run. Report only what you observed.
+- "Should work" is not done.
+
+Full project contract: `AGENTS.md`.

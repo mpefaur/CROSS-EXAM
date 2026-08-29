@@ -1,0 +1,37 @@
+# EditorConfig — consistent formatting across editors and agents.
+# https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+max_line_length = 100
+
+# Markdown: trailing double-space is a hard line break, so keep it.
+[*.{md,mdc,markdown}]
+trim_trailing_whitespace = false
+
+[*.{py,rs,java,kt,cs,php}]
+indent_size = 4
+
+[*.go]
+indent_style = tab
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+
+[*.{sh,bash,zsh}]
+indent_size = 2
+
+[*.ps1]
+indent_size = 4
+
+# Generated/locked files: don't reformat.
+[{*.lock,*-lock.json,*.lockb,go.sum}]
+insert_final_newline = false
+trim_trailing_whitespace = false

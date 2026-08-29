@@ -1,0 +1,116 @@
+# ─── Secrets (never commit — see AGENTS.md §6) ────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+id_rsa*
+credentials.json
+service-account*.json
+secrets.*
+.netrc
+.npmrc
+.pypirc
+
+# ─── AI agent local state ─────────────────────────────────────────────────────
+# Committed: .claude/skills, .claude/commands, .cursor/rules, .clinerules, AGENTS.md
+# Ignored: anything machine-local or credential-bearing.
+.claude/settings.local.json
+.claude/.credentials.json
+.claude/todos/
+.claude/shell-snapshots/
+.claude/statsig/
+.claude/projects/
+.claude/history.jsonl
+.cursor/mcp.json
+.aider*
+.continue/
+.windsurf/local/
+.roo/
+.codeium/
+.specify/cache/
+.specify/integrations/.cache/
+.rtk/
+.rtk-cache/
+*.agent.local.md
+
+# ─── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+vendor/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.Python
+target/
+.bundle/
+
+# ─── Build output ─────────────────────────────────────────────────────────────
+dist/
+build/
+out/
+.next/
+.nuxt/
+.svelte-kit/
+.output/
+.turbo/
+.parcel-cache/
+*.tsbuildinfo
+*.egg-info/
+.eggs/
+
+# ─── Test & coverage ──────────────────────────────────────────────────────────
+coverage/
+.coverage
+.coverage.*
+htmlcov/
+.nyc_output/
+.pytest_cache/
+.tox/
+.mypy_cache/
+.ruff_cache/
+junit.xml
+
+# ─── Logs & temp ──────────────────────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+tmp/
+.cache/
+
+# ─── Editor / OS ──────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+*.sublime-workspace
+
+# ─── Infra state (often contains secrets) ─────────────────────────────────────
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
