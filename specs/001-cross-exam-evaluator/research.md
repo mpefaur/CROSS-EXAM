@@ -309,8 +309,8 @@ long SSE read and look like an agent bug.
 ### D-10 — Models
 
 **Decision**: Both agents configured by environment variable, defaulting to
-`openai/gpt-5.4-mini` for the acting agent and `anthropic/claude-sonnet-4-6` for the
-Evaluator. Neither is hardcoded (FR-022 applies the same principle to agent identity).
+`openai/gpt-5-6-luna` for the acting agent and `openai/gpt-5-6-terra` for the
+Evaluator, both on the one `OPENAI_API_KEY` (2026-08-29). Neither is hardcoded (FR-022 applies the same principle to agent identity).
 
 **Rationale**: `docs/research-findings.md §2.3` marks the model split an **[ASSUMPTION] to
 validate at the table** — OpenAI is the event's model partner and gives every attendee $50

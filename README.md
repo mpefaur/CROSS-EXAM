@@ -260,7 +260,7 @@ demo underneath us:
 | pnpm 9                                             | `pnpm -v`                              |
 | Python 3                                           | `python3 --version`                    |
 | TrueForge on `:8790`                               | `npx @truefoundry/trueforge@0.1.4`     |
-| Model provider key                                 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` |
+| Model provider key                                 | `OPENAI_API_KEY`                       |
 
 
 ```bash
