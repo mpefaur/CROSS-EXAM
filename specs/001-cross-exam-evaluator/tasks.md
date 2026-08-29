@@ -126,7 +126,7 @@ and the action executes ([quickstart.md](./quickstart.md) Scenario 1).
 
 ### The irreversible actions (owner B)
 
-- [ ] T020 [P] [US1] Implement the streamable-HTTP MCP server in `packages/mcp/src/server.ts` with the entrypoint `packages/mcp/src/index.ts`, exposing `bulk_refund`, `issue_payout`, and `close_account` with the arguments and `destructive: true` annotations of [contracts/mcp-tools.md](./contracts/mcp-tools.md); handlers take the harness's string arguments (`criteria`, `declared_count`, `declared_value`) and **execute nothing at proposal time** — the harness holds the call, the Bench decodes the proposal from the model's text (FR-001, D-14)
+- [x] T020 [P] [US1] Implement the streamable-HTTP MCP server in `packages/mcp/src/server.ts` with the entrypoint `packages/mcp/src/index.ts`, exposing `bulk_refund`, `issue_payout`, and `close_account` with the arguments and `destructive: true` annotations of [contracts/mcp-tools.md](./contracts/mcp-tools.md); handlers take the harness's string arguments (`criteria`, `declared_count`, `declared_value`) and **execute nothing at proposal time** — the harness holds the call, the Bench decodes the proposal from the model's text (FR-001, D-14)
 - [ ] T021 [US1] Implement production execution in `packages/mcp/src/execute.ts`: on an `allow` resolution and only then, apply the action to `fixtures/production.json` and report the count and total it computed at execution time; it must never open the replica, and never report a figure it did not compute (FR-014, [contracts/mcp-tools.md](./contracts/mcp-tools.md) § What this server must never do)
 
 ### The orchestrator — the Bench (owner A)
