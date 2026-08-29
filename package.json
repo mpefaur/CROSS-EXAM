@@ -1,0 +1,16 @@
+{
+  "name": "cross-exam",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.4.0",
+  "engines": {
+    "node": ">=22.14"
+  },
+  "scripts": {
+    "demo": "pnpm --filter @crossexam/bench run demo",
+    "seed": "pnpm --filter @crossexam/core run seed",
+    "test": "pnpm -r run test",
+    "lint": "eslint .",
+    "build": "pnpm -r run typecheck"
+  }
+}

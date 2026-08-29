@@ -114,3 +114,6 @@ Desktop.ini
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+
+# CROSS-EXAM local state (docket, run artifacts)
+.crossexam/
