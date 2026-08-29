@@ -1,9 +1,33 @@
+diff --git a/dist/grammarToolCallLLM.d.ts b/dist/grammarToolCallLLM.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..4ae582b4ace815675cedff398b9491864378fecc
+--- /dev/null
++++ b/dist/grammarToolCallLLM.d.ts
+@@ -0,0 +1,18 @@
++import type { ILLM } from "@truefoundry/trueforge-core/core";
++
++export interface GrammarRegistry {
++  tools: Set<string>;
++  keys: Map<string, string>;
++}
++export declare function loadGrammarRegistry(raw?: string | undefined): GrammarRegistry | null;
++export declare function describeGrammarRegistry(registry: GrammarRegistry | null): string;
++export declare function stripGrammarFromRequest<T extends { messages: unknown[]; tools?: unknown[] }>(body: T, registry: GrammarRegistry): T;
++export declare function synthesizeToolCall(
++  output: { content?: unknown; tool_calls?: unknown[] | undefined },
++  registry: GrammarRegistry
++): { id: string; type: "function"; function: { name: string; arguments: string } } | null;
++export declare class GrammarToolCallLLM implements ILLM {
++  constructor(inner: ILLM, registry: GrammarRegistry);
++  create: ILLM["create"];
++  createNonStream: ILLM["createNonStream"];
++}
 diff --git a/dist/grammarToolCallLLM.js b/dist/grammarToolCallLLM.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..ce1d85123b36c7e93ccd4f75331fc05ba9bb51b4
+index 0000000000000000000000000000000000000000..9c1a8d53e5c9d7fa25334f179a70a2885d8e66d7
 --- /dev/null
 +++ b/dist/grammarToolCallLLM.js
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,142 @@
 +// CROSS-EXAM patch (research D-14): a registry-driven emoji-lines-to-tool-call adapter
 +// around the harness's ILLM. Read once at start from CROSSEXAM_GRAMMAR_REGISTRY:
 +//
@@ -20,7 +44,16 @@ index 0000000000000000000000000000000000000000..ce1d85123b36c7e93ccd4f75331fc05b
 +  if (raw === undefined || raw === "") {
 +    return null;
 +  }
-+  const parsed = JSON.parse(raw);
++  let parsed;
++  try {
++    parsed = JSON.parse(raw);
++  } catch {
++    // The value is deliberately absent from every message below (FR-023).
++    throw new Error("CROSSEXAM_GRAMMAR_REGISTRY is not valid JSON");
++  }
++  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
++    throw new Error("CROSSEXAM_GRAMMAR_REGISTRY must be a JSON object");
++  }
 +  if (!Array.isArray(parsed.$tools)) {
 +    throw new Error('CROSSEXAM_GRAMMAR_REGISTRY: "$tools" must be an array of tool names');
 +  }
@@ -31,7 +64,7 @@ index 0000000000000000000000000000000000000000..ce1d85123b36c7e93ccd4f75331fc05b
 +      continue;
 +    }
 +    if ([...key].length !== 1) {
-+      throw new Error(`CROSSEXAM_GRAMMAR_REGISTRY: key ${JSON.stringify(key)} must be one codepoint`);
++      throw new Error("CROSSEXAM_GRAMMAR_REGISTRY: every key must be one codepoint");
 +    }
 +    if (field === "$tool") {
 +      toolKey = key;
@@ -137,12 +170,8 @@ index 0000000000000000000000000000000000000000..ce1d85123b36c7e93ccd4f75331fc05b
 +    return { ...result, finish_reason: "tool_calls", output: { ...result.output, tool_calls: [call] } };
 +  }
 +}
-+
-+export function wrapGrammarToolCallLLM(inner, registry) {
-+  return registry === null ? inner : new GrammarToolCallLLM(inner, registry);
-+}
 diff --git a/dist/main.js b/dist/main.js
-index ef38f43d24c3d95115a63f3f8a807b858cc02e08..e09ed5180f32ec7c42d1c566efa71637430e5de1 100644
+index ef38f43d24c3d95115a63f3f8a807b858cc02e08..9e825e7d47c006505083a31e9d306373525cace0 100644
 --- a/dist/main.js
 +++ b/dist/main.js
 @@ -9760,6 +9760,12 @@ import {
@@ -151,34 +180,33 @@ index ef38f43d24c3d95115a63f3f8a807b858cc02e08..e09ed5180f32ec7c42d1c566efa71637
  import { streamSSE } from "hono/streaming";
 +import {
 +  describeGrammarRegistry,
-+  loadGrammarRegistry,
-+  wrapGrammarToolCallLLM
++  GrammarToolCallLLM,
++  loadGrammarRegistry
 +} from "./grammarToolCallLLM.js";
 +var GRAMMAR_REGISTRY = loadGrammarRegistry();
  
  // src/routes/turnRoutes.ts
  import { createRoute as createRoute12, z as z24 } from "@hono/zod-openapi";
-@@ -10325,11 +10331,14 @@ function createTurnResolver(deps) {
+@@ -10324,12 +10330,13 @@ function createTurnResolver(deps) {
+         name,
          store: modelProviderStore
        });
++      const modelClient = new VercelAILLM({
++        providerConfig,
++        logger,
++        signal
++      });
        return {
 -        modelClient: new VercelAILLM({
 -          providerConfig,
 -          logger,
 -          signal
 -        }),
-+        modelClient: wrapGrammarToolCallLLM(
-+          new VercelAILLM({
-+            providerConfig,
-+            logger,
-+            signal
-+          }),
-+          GRAMMAR_REGISTRY
-+        ),
++        modelClient: GRAMMAR_REGISTRY === null ? modelClient : new GrammarToolCallLLM(modelClient, GRAMMAR_REGISTRY),
          defaultModelParams
        };
      },
-@@ -11749,6 +11758,7 @@ try {
+@@ -11749,6 +11756,7 @@ try {
      standalone: configuration2.STANDALONE,
      version: PACKAGE_VERSION
    });
