@@ -86,8 +86,15 @@ describe('parseLine obligations 1–2 (shared by every decoder)', () => {
     expect(decodeVerdict('✅7 | 840.00 | 0 | ok\n✅7 | 840.00 | 0 | ok').ok).toBe(false);
   });
 
+  it('splits on a bare |: compact and spaced proposals decode to the same value', () => {
+    expect(decodeProposal('🧾a=1|1|1.00')).toEqual(decodeProposal('🧾a=1 | 1 | 1.00'));
+    expect(decodeProposal('🧾a=1|1|1.00')).toMatchObject({ ok: true, value: { criteria: 'a=1', declared_count: 1 } });
+  });
+
   it('rejects a key another direction owns, an unregistered key, and no key', () => {
     expect(decodeProposal('✅7 | 840.00 | 0 | ok').ok).toBe(false);
+    expect(decodeMeasurement('✅1204 | 96310.00 | 611 | ok').ok).toBe(false);
+    expect(decodeMeasurement('⛔1204 | 96310.00 | 611 | no').ok).toBe(false);
     expect(decodeProposal('🧮7 | 840.00 | 0').ok).toBe(false);
     expect(decodeVerdict('🧾status=disputed | 7 | 840.00').ok).toBe(false);
     expect(decodeMeasurement('🧾status=disputed | 7 | 840.00').ok).toBe(false);
