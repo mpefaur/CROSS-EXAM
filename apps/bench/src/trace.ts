@@ -25,15 +25,6 @@ export type Sink = (line: string) => void;
 /** The grammar line's column, so the `[executor=…]` note lines up under itself. */
 const GRAMMAR_WIDTH = 32;
 
-/**
- * Pad to a visible width. `padEnd` counts UTF-16 units, and the `🧮` key is two of them, so
- * padding the raw string leaves the note one column short of where the header puts it.
- */
-function padVisible(text: string, width: number): string {
-  const visible = [...text].length;
-  return visible >= width ? text : text + ' '.repeat(width - visible);
-}
-
 const VERDICT_MARK = { allow: '✅ allow', deny: '⛔ deny', escalate: '⚖ escalate' } as const;
 
 /** What one executed action's rows are called, for the completion line. */
@@ -88,7 +79,10 @@ export function measuringLine(): string {
 /** `  🧮1204 | 96310.00 | 611          [executor=local  1.4s]` */
 export function measurementLine(measurement: Measurement): string {
   const seconds = (measurement.duration_ms / 1000).toFixed(1);
-  const grammar = padVisible(encodeMeasurement(measurement), GRAMMAR_WIDTH);
+  // Padded by code point: `padEnd` counts UTF-16 units and the `🧮` key is two of them,
+  // which would leave the note one column short of where the header puts it.
+  const line = encodeMeasurement(measurement);
+  const grammar = line + ' '.repeat(Math.max(0, GRAMMAR_WIDTH - [...line].length));
   return `  ${grammar}[executor=${measurement.executor}  ${seconds}s]`;
 }
 
@@ -111,20 +105,22 @@ export function verdictBlock(verdict: Verdict): string[] {
   return [head, `  ${encodeVerdict(verdict)}`];
 }
 
+/**
+ * What the production ledger reported, or why it wrote nothing.
+ *
+ * A discriminated union rather than a bag of optional fields: a refusal always carries its
+ * reason, and an execution always carries the figures the ledger computed, so the renderer
+ * cannot print "0 refunds" for a result it merely failed to understand.
+ */
+export type ExecutionOutcome =
+  | { executed: true; action: ActionName; count: number; value_cents: number }
+  | { executed: false; reason: string };
+
 /** What the production ledger reports back after an allow, or why it wrote nothing. */
-export function executionLine(result: {
-  executed: boolean;
-  action?: ActionName;
-  count?: number;
-  value_cents?: number;
-  reason?: string;
-}): string {
-  if (!result.executed) {
-    return `▸ nothing executed — ${result.reason ?? 'no reason given'}`;
-  }
-  const noun = result.action === undefined ? 'rows' : EXECUTED_NOUN[result.action];
-  const count = String(result.count ?? 0);
-  return `▸ executed against production ledger — ${count} ${noun}, $${dollars(result.value_cents ?? 0)}`;
+export function executionLine(outcome: ExecutionOutcome): string {
+  if (!outcome.executed) return `▸ nothing executed — ${outcome.reason}`;
+  const noun = EXECUTED_NOUN[outcome.action];
+  return `▸ executed against production ledger — ${String(outcome.count)} ${noun}, $${dollars(outcome.value_cents)}`;
 }
 
 /** The run refused to start, or ended without deciding. */
