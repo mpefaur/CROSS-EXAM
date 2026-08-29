@@ -1,0 +1,10 @@
+{
+  "workflow": "speckit",
+  "specName": "001-cross-exam-evaluator",
+  "branch": "001-cross-exam-evaluator",
+  "selectedAt": "2026-08-29T05:48:54.646Z",
+  "currentStep": "specify",
+  "status": "draft",
+  "history": [],
+  "telemetryInstanceId": "94a9a624-0926-4598-af05-99596a7f92ee"
+}

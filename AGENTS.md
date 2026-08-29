@@ -9,10 +9,18 @@ Cline, Copilot, Codex, Gemini…). Agent-specific files (`CLAUDE.md`,
 
 ## 1. Project
 
-- **Name:** `<PROJECT_NAME>`
-- **Purpose:** `<ONE_SENTENCE>`
-- **Stack:** `<LANGUAGES / FRAMEWORKS>` — this template is stack-agnostic; fill it in.
-- **Run:** `<COMMAND>` · **Test:** `<COMMAND>` · **Lint:** `<COMMAND>` · **Build:** `<COMMAND>`
+- **Name:** CROSS-EXAM
+- **Purpose:** An adversarial evaluator agent that measures the real blast radius of
+  another agent's irreversible action — by executing it against a sandboxed replica —
+  and cross-examines that agent with the evidence before the action reaches production.
+- **Stack:** TypeScript on Node 22.14+, pnpm workspace. TrueForge harness (local mode,
+  `:8790`) via `@truefoundry/trueforge-sdk`; a custom streamable-HTTP MCP server
+  (`@modelcontextprotocol/sdk`); Daytona sandbox; a seeded deterministic ledger.
+- **Run:** `pnpm demo` · **Test:** `pnpm test` · **Lint:** `pnpm lint` · **Build:** `pnpm build`
+
+> These four commands are **established by the first setup task**, not yet present.
+> Until that task lands, "verified" means the command was run and its output read —
+> see the constitution's Verified by a Real Command principle.
 
 ## 2. Workflow — Spec-Driven Development (non-negotiable)
 
@@ -35,10 +43,12 @@ constitution → specify → [clarify] → plan → tasks → [analyze] → impl
 
 Rules:
 
-- One feature = one branch = one `specs/<n>-<slug>/` directory.
+- **One spec, one `tasks.md` for the whole event** — one `specs/<n>-<slug>/` directory.
+  The chain above runs once; no per-task spec cycles. (Constitution VII.)
+- Implementation then goes **task by task, each on its own branch and PR** (§7).
 - The spec describes **what and why**, never *how*. Implementation detail lives in `plan.md`.
 - Any `[NEEDS CLARIFICATION]` marker blocks `/speckit.plan`. Resolve it first.
-- Scope changes go back to the spec — do not silently widen the work.
+- New scope discovered mid-implementation gets **cut**, not added to the spec.
 
 ## 3. Behavior — Karpathy principles
 
@@ -54,7 +64,11 @@ Expanded in [CLAUDE.md](CLAUDE.md) and [.cursor/rules/karpathy.mdc](.cursor/rule
 A task is done only when a **real command** proves it — never "should work".
 
 - Run the project's test/lint/build commands from §1 and paste the actual result.
-- New behavior ships with a test that fails without the change.
+- The **seeded, deterministic end-to-end demo scenario is the required test**. Unit tests
+  are written only where they are cheaper than re-running that scenario. (Constitution IV —
+  a deliberate calibration to the 4-hour budget, not a tacit exception.)
+- A verdict path never emits `allow`/`deny` without cited execution numbers; no execution
+  means `escalate`. (Constitution II — no waiver.)
 - If verification is impossible, say so explicitly instead of implying success.
 
 ## 5. Token discipline
@@ -79,8 +93,25 @@ A task is done only when a **real command** proves it — never "should work".
 - [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`
   (`feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `build`, `ci`).
   Imperative mood, ≤72 chars, `!` or `BREAKING CHANGE:` for breaks.
-- Branch per feature: `<n>-<slug>` (created by `/speckit.specify`).
-- Never commit, push, or open a PR unless asked. Never force-push shared branches.
+- **One task = one branch = one PR = one Qodo review = merge.** Never commit directly to
+  `main`. Opening the branch and PR for a task in `tasks.md` is pre-authorized — no need
+  to ask each time. Anything outside that (pushing `main`, releases) still needs a request.
+- Every PR passes Qodo — automatic on open, or triggered with `/agentic_review` — and its
+  findings are resolved **before** merge. This cannot be fabricated retroactively.
+  (Constitution V.) Full protocol: [docs/qodo-playbook.md](docs/qodo-playbook.md).
+  The four rules that never bend:
+  1. Every finding gets a written reply — **confirmed** (reproduced by a real command),
+     **challenged** (you could not verify it), or **dismissed** (Rejected / Deferred /
+     Intentional, with the reason). No silent closes, no reaction-only resolutions.
+  2. Never apply a suggestion you cannot explain in one sentence, and never one you have
+     not reproduced. "Qodo recommended it" is not verification (Constitution IV).
+  3. A suggestion that would violate the constitution is challenged and the principle is
+     named — never applied quietly.
+  4. Re-run `/agentic_review` after the fix commits; merging on a stale review is a
+     fabricated trail.
+- The PR body names its task and its FR/SC (playbook §7) — that is what lets Qodo detect a
+  requirement gap against `spec.md` instead of reviewing style alone.
+- Never force-push shared branches.
 
 ## 8. Extra skills
 
