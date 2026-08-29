@@ -16,7 +16,8 @@ decodeVerdict(text: string): DecodeResult<Verdict>
 Obligations:
 
 1. Split on `\n`. Ignore lines that are empty or whitespace-only. Every other line MUST
-   begin with a registered key from the registry; its value is the rest of the line,
+   begin with a registered key from the registry **for that direction** — a verdict key in
+   a proposal, or a proposal key in a verdict, is a parse failure; its value is the rest of the line,
    literal, trimmed of trailing whitespace only.
 2. An unregistered leading character, or a line with no key, is a **parse failure**. Return
    `{ ok: false }`. Never attempt a second, looser parse (FR-025).
@@ -44,3 +45,10 @@ Obligations:
 
 `decodeProposal(encodeProposal(p))` deep-equals `p`, for every proposal in the fixture set;
 and every malformed input class above has a test asserting `ok: false` (research D-12).
+
+## Who decodes what
+
+The patched harness ([research.md](../research.md) D-14) also reads the `🧾` line — to turn the
+message into a tool call — but it maps lines to strings and validates nothing. `decodeProposal`
+runs in the Bench on the `model.message` content and is the only source of truth for what was
+proposed. The harness's synthesised arguments are never decoded by the Bench.

@@ -50,7 +50,7 @@ changing it after either builder has branched breaks both sides at once. C-4 nar
 |---|---|---|---|
 | **0** | — | T000 | 1 — must **merge** before any feature PR; may be authored concurrently with Wave 1 |
 | **1** | — | T001 → T004 · T002 → T003 · **T005** · **T014** | 3–4. T005 and T014 have no dependencies at all — start both at t=0 |
-| **2** | T001–T005 | T006 → { **T007**, T008 } | 2 |
+| **2** | T001–T005 | T006 → { **T007**, T008 } ‖ **T008a** *(harness patch — needs only T001–T002, gates every live turn from T020 on)* | 3 |
 | **3** | T007 + T008 | **T009** → T010 ‖ T011 → T012 → T013 ‖ T018 → T019 ‖ T022, T023, T024, T027, T028 | 4 lanes |
 | **4** | T009 merged | T015 → T016 *(needs T013)* → T017 ‖ T020 → T021 *(needs T013)* ‖ T025 → T026 ‖ T029 *(needs T018)* | 4 lanes. "Opens when" is the grammar gate only — each lane still carries its own prerequisite in italics |
 | **5** | Wave 4 | T030 → T031 → T032 | **1 — serial join. The 14:30 cutline.** |

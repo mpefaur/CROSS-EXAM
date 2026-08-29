@@ -34,6 +34,10 @@ One line per field. No nesting. No JSON inside a field.
   is needed, that is a sign the field is modeled wrong.
 - Line order is free. The parser indexes by key, not by position.
 - An unknown key, or a line with no key, means the proposal does not parse (FR-025).
+- A message that carries a `🧾` line **is a tool call**. The patched harness
+  ([research.md](../specs/001-cross-exam-evaluator/research.md) D-14) invokes the tool the
+  value names; the other proposal lines are its arguments. No JSON or XML wrapper exists —
+  that is the point of the grammar.
 
 ## Key registry
 

@@ -31,8 +31,9 @@ fell short. The check is done once, here; `plan.md` cites the outcome.
 | Correlate `tool.approval_required` → tool name + arguments | **No** — the event carries only `{id, source_event_id}` (`schema.ts:322-338`); the name and args live on the preceding `model.message` | **Falls short.** Own correlation in the orchestrator. |
 | Serialize turns per session | **No** — *"Creating a new turn in a session automatically cancels any turn still running"* | **Falls short.** Own per-session queue (FR-003). |
 | Measure a proposed action's reach over data | **No** — nothing in the harness executes a proposal against a replica and counts | **Falls short. This is the product.** Own measurement runner + seeded ledger. |
+| Recognise the emoji grammar as a tool call | **No** — the loop's only tool-call source is the provider's native `tool_calls` (`trueforge-core/dist/core/runtime/AgentThread.mjs:785,794` → `enrichAssistantMessage`); plain text ends the turn | **Falls short.** `pnpm patch` synthesises the call from grammar lines before enrichment (D-14); everything after that point stays native. |
 
-Own code is therefore confined to five things: the orchestrator (correlation + serialization),
+Own code is therefore confined to six things: the harness patch (D-14), the orchestrator (correlation + serialization),
 the MCP server of irreversible actions, the seeded ledger and its generator, the measurement
 runner and its script, and the verdict rules. Everything else is harness behavior.
 
@@ -204,22 +205,31 @@ $250,000 sits in the middle of that band with room on both sides, and reads as a
 **Alternatives considered**: $10,000 (a natural-sounding number) — **would have broken the
 P1 demo**, escalating the flagship denial. Recorded because it was the obvious first choice.
 
-### D-08 — Proposal / verdict encoding: the emoji grammar
+### D-08 — Proposal / verdict encoding: the emoji grammar is the tool-call syntax
 
-**Decision**: Implement [docs/emoji-grammar.md](../../docs/emoji-grammar.md) verbatim as the
-single wire format between the two agents, in `packages/core/src/grammar/`. Encoder and
-decoder are pure functions; the decoder is strict (unknown key or keyless line → parse
-failure, no second attempt under a looser grammar).
+**Decision**: Implement [docs/emoji-grammar.md](../../docs/emoji-grammar.md) verbatim in
+`packages/core/src/grammar/`. The grammar is not a payload inside a native tool call — it
+**replaces** the provider's native tool-call format for the acting agent. The model writes
+the four proposal lines as plain assistant text; the patched harness (D-14) turns a message
+that carries a `🧾` line into a tool call named by that line, and the verdict travels back
+as grammar lines too. No JSON tool schema is ever sent to the model. Encoder and decoder are
+pure functions; the decoder is strict (unknown key, keyless line, or a key from the other
+direction → parse failure, no second attempt under a looser grammar).
 
-**Rationale**: FR-024/FR-025, and `docs/emoji-grammar.md` is already the declared source of
-truth for the key set. This is a **deliberate deviation** on two counts — it puts a *how* in
-the spec (Constitution VII) and it prefers our own grammar over the harness's native
-tool-calls (Constitution III) — both carried into `plan.md` Complexity Tracking as the
-constitution's Governance section requires.
+**Rationale**: FR-024/FR-025, and the source article's point taken in full: reliability
+degrades with nesting × heterogeneity × cleverness. A JSON tool call is a nested,
+heterogeneous structure the model must emit byte-perfect; a flat emoji-keyed line set is
+neither. This remains a **deliberate deviation** on two counts — a *how* in the spec
+(Constitution VII) and a patched harness instead of its native tool-call path
+(Constitution III) — both carried in `plan.md` Complexity Tracking.
 
-**Alternatives considered**: native tool-calling with a JSON argument object. Rejected per
-the spec's own reasoning: the source article puts native tool-calling ahead only past ~10
-tools, and this feature has three. Recorded, not re-litigated.
+**Alternatives considered**:
+- *Native tool-calling with a JSON argument object*: rejected per the spec's own reasoning.
+- *The grammar as the content of one string argument of a native call*: leaves the harness
+  untouched, but the model still emits the JSON tool-call wrapper — the exact failure
+  surface the grammar exists to remove.
+- *The Bench decodes model text and owns the hold itself*: rebuilds the hold, the denial
+  delivery and the escalate surface the harness already has (Constitution III). See D-14.
 
 ### D-09 — Serialization and timeouts
 
@@ -297,6 +307,47 @@ pass, which is the entire point.
 hardcoded checks that exist to be shown passing.
 
 ---
+
+### D-14 — Harness patch: grammar lines are first-class tool calls
+
+**Decision**: Patch `@truefoundry/trueforge-core@0.1.4` with `pnpm patch`, committed as
+`patches/@truefoundry__trueforge-core@0.1.4.patch` and applied on every install. Two sites
+in `dist/core/runtime/AgentThread.mjs`:
+
+1. Before both `enrichAssistantMessage()` calls (lines 785 and 794 in 0.1.4): when the
+   assembled assistant message has no `tool_calls` and its text contains a `🧾` line,
+   synthesise `tool_calls: [{ id, type: "function", function: { name: <🧾 value>, arguments } }]`.
+   `arguments` is the JSON object of the other proposal-key lines by field name
+   (`criteria`, `declared_count`, `declared_value`) — raw strings, absent when the line is
+   absent. `content` is left untouched.
+2. In `transformToLLMRequest()` (line 599): never set `requestBody.tools`. The model learns
+   the tools only from the grammar in its prompt.
+
+Everything downstream is native and unchanged: `toolMapping` lookup →
+`tool_info.is_approval_required` from `require_approval_for_tools` →
+`tool.approval_required` → resolve with `reason` → tool result → next LLM call.
+
+**Rationale**: The loop's only tool-call source is the provider's `tool_calls`; plain text
+ends the turn (§A). The synthesis point is one function boundary, ~40 lines, and every
+hold / deny / escalate behaviour the spec relies on lives after it. `pnpm patch` rather
+than a fork because the pin to 0.1.4 already exists (R9), the dist is unbundled and
+readable, and a fork costs a clone, a build and a `file:` link under the clock.
+
+**The patch is dumb on purpose.** It maps lines to strings; it validates nothing. The Bench
+decodes the original text strictly with `decodeProposal` (T026) — a missing `🔢` or a
+malformed line is still a parse failure → `escalate` (FR-002, FR-025). The tool never runs
+on a proposal the Bench did not decode, because the approval is the Bench's to resolve.
+
+**Risks**:
+- *R-14a* — Anthropic rejects a request whose history holds `tool_use`/`tool_result` blocks
+  but declares no `tools`; the Evaluator runs on Claude. If the T008a run shows it, site 2
+  keeps `tools` on requests whose context already holds tool blocks, or renders prior calls
+  as text. Verified by a real turn, not assumed.
+- *R-14b* — The patch pins to 0.1.4 and fails loudly on a bump. Intended: R9 forbids bumps.
+
+**Alternatives considered**: fork `github.com/truefoundry/trueforge` and build from source
+— same change, more toolchain; revisit only if a second patch site appears. Bench owns the
+pause — D-08, third alternative.
 
 ## C. Remaining assumptions
 

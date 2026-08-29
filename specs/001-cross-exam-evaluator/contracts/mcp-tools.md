@@ -8,6 +8,13 @@ harness connects to.
 Registered with `require_approval_for_tools: ["@all"]`, so every call below pauses
 (FR-001).
 
+**How a call arrives.** The acting agent never sees this server's JSON schema. It writes the
+proposal as grammar lines in its own text; the patched harness ([research.md](../research.md)
+D-14) turns a message carrying `🧾bulk_refund` into a call to `bulk_refund`, with the other
+lines as string arguments — `🔍` → `criteria`, `🔢` → `declared_count`, `💵` → `declared_value`.
+The argument tables below describe what the *harness* passes to this server, not what the
+model types.
+
 ## Tools
 
 ### `bulk_refund`
@@ -34,8 +41,8 @@ framing; not exercised by the seeded scenario.
 
 1. Evaluate the four guardrails of [data-model.md](../data-model.md) §6 and include the
    `GuardrailReport` in the tool's proposal payload (FR-017, FR-018).
-2. Return the proposal encoded in the emoji grammar. **The tool does not execute anything
-   at proposal time** — the harness holds it at `tool.approval_required`.
+2. **Nothing runs at proposal time** — the harness holds the call at `tool.approval_required`.
+   The Bench decodes the proposal from the model's own text (T026), never from this server.
 3. On an `allow` resolution, and only then, apply the action to the **production** ledger
    and report completion (FR-014).
 4. On `deny` or an unanswered `escalate`, leave the production ledger untouched (FR-014).

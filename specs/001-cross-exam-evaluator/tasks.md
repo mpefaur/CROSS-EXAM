@@ -76,6 +76,9 @@ a change to it after either builder branches breaks both sides at once
 **T013 (fixtures) is a narrower gate**: it blocks only the tasks that *open a ledger* —
 T015's real run, T016, T021, T030. It does not block T014, T018, T020, T022–T028.
 
+**T008a (harness patch) gates every live turn** — T020's manual check and T022 onward. It
+does not gate T009–T019, and it needs only T001–T002.
+
 **Three Phase 3 tasks do not wait for this phase at all** and should be started early rather
 than held: **T014** (`measure.py` is stdlib Python — no TypeScript dependency, startable at
 t=0 alongside Phase 1), **T018** (`decide()` needs only T007 + T008), and **T022** (agent
@@ -84,6 +87,7 @@ creation needs only T008). See [docs/parallel-implementation.md](../../docs/para
 - [ ] T006 Create the ledger entity types — `Charge`, `Payout`, `ReplicaLedger`/`ProductionLedger` — in `packages/core/src/model/entities.ts` per [data-model.md](./data-model.md) §1–§3, money as integer cents only; create the barrel `packages/core/src/index.ts` re-exporting the model (later tasks append their own export line)
 - [ ] T007 **[critical path — T009 depends on it]** Create the case types — `ProposedAction`, `GuardrailReport`, `ChargeSheet`, `Measurement`, `Verdict` — in `packages/core/src/model/case.ts` per [data-model.md](./data-model.md) §4, §6–§9, typing the Constitution II invariant so `verdict !== 'escalate'` forces `evidence !== null` at compile time. `[P]` with T008 only — this is **not** a side branch: [contracts/wire-grammar.md](./contracts/wire-grammar.md) types `decodeProposal(text): DecodeResult<ProposedAction>` and the encoder takes a `Verdict`, so T009 cannot start until this lands
 - [ ] T008 [P] Create the environment config loader in `packages/core/src/model/config.ts` reading every variable of [data-model.md](./data-model.md) §12 with its documented default; it must never print, log, or echo a credential value, not even truncated (FR-023, SC-010)
+- [ ] T008a [P] **(needs only T001–T002)** Patch the harness so grammar lines are tool calls: `pnpm patch @truefoundry/trueforge-core@0.1.4`, edit `dist/core/runtime/AgentThread.mjs` at the two sites of [research.md](./research.md) D-14 — synthesise `tool_calls` from a `🧾` line before both `enrichAssistantMessage()` calls, and omit `requestBody.tools` in `transformToLLMRequest()` — then `pnpm patch-commit` and commit `patches/` plus the `patchedDependencies` entry. Verify with a real run: start the harness from the workspace (`pnpm exec trueforge`, never `npx`, so the patched core loads), attach an MCP server, have the model emit the four proposal lines as text, and paste the `tool.approval_required` event naming the tool; also paste one Claude turn whose context already holds a tool result, to confirm or trigger R-14a (FR-001, FR-024, D-14)
 - [ ] T009 Implement the emoji grammar encoder and decoder in `packages/core/src/grammar/index.ts` against the registry in [docs/emoji-grammar.md](../../docs/emoji-grammar.md), honouring every obligation in [contracts/wire-grammar.md](./contracts/wire-grammar.md): strict single-pass decode, unknown/absent/repeated key is a terminal parse failure, `💵`/`💰` parsed `#.##` → integer cents, encoder throws on a value containing `\n`, and `⚖allow`/`⚖deny` cannot be encoded without `🧮`+`💰`+`♻` (FR-024, FR-025)
 - [ ] T010 Write the grammar unit suite in `packages/core/tests/grammar.test.ts`: `decodeProposal(encodeProposal(p))` deep-equals `p` for every fixture proposal, plus one asserting-`ok:false` case per malformed class — unregistered key, keyless line, repeated key, missing `🔢`, missing `💵`, non-`#.##` money, embedded newline ([D-12](./research.md))
 - [ ] T011 Implement the RNG-free ledger generator in `packages/core/src/ledger/generate.ts` producing the cohorts of [research.md](./research.md) [D-05](./research.md) exactly — 611 disputed+refunded, 586 disputed+unrefunded+`age_days>30`, 7 disputed+unrefunded+`age_days<=30` totalling $840.00, 1,204 disputed totalling $96,310.00, 296 settled/open, 342 eligible payouts totalling $418,220.00 — amounts from a fixed repeating cycle with the last charge of each cohort absorbing the remainder; add the `packages/core/src/ledger/seed.ts` entrypoint behind `pnpm seed`, writing both seeds independently (FR-006, FR-007)
@@ -261,6 +265,7 @@ earlier verdict with its cited evidence.
 - The case types (T007) precede the grammar (T009) — `decodeProposal` returns `DecodeResult<ProposedAction>` and the encoder takes a `Verdict` ([contracts/wire-grammar.md](./contracts/wire-grammar.md))
 - The measurement script (T014) precedes both executors; both executors precede the resolution order (T017). T014 itself depends on nothing and is written against [data-model.md](./data-model.md) §5, not against any TypeScript in this repo
 - `decide()` (T018) precedes its unit suite (T019) and the resolver (T029)
+- The harness patch (T008a) precedes every task that runs a live turn — T020's manual check, T022–T032
 - The correlation (T025) precedes the charge sheet (T026), which precedes the demo wiring (T030)
 - Every phase ends with a task that **runs a real command and reads its output** — T032, T036, T039, T041, T043, T045, T050
 
@@ -272,7 +277,7 @@ earlier verdict with its cited evidence.
 > `/speckit.implement`.
 
 - **Phase 1**: T003, T004, T005 in parallel after T002
-- **Phase 2**: T007 and T008 in parallel with each other after T006, but T007 is the critical path — T009 waits on it. T011 (and T008, and T018) run in parallel with the T007 → T009 chain (different owners, different directories)
+- **Phase 2**: T008a runs beside everything else in the phase (needs only T001–T002). T007 and T008 in parallel with each other after T006, but T007 is the critical path — T009 waits on it. T011 (and T008, and T018) run in parallel with the T007 → T009 chain (different owners, different directories)
 - **Phase 3**: T014 and T018 open before Phase 2 closes (see that phase's ⚠️ note); the remaining tracks run in parallel once T009 is merged — A on measurement (T014, T015) and the verdict (T018), B on the MCP server (T020), A on the orchestrator (T022). T027 and T028 (the two prompts) are independent files
 - **Phase 9**: T046 and T047 in parallel
 
@@ -324,6 +329,7 @@ are never cut. New scope discovered mid-implementation gets cut, not added
 ## Notes
 
 - `[P]` means different files with no dependency on an incomplete task
+- `patches/` is part of the R9 pin: a bump of `@truefoundry/trueforge-core` without re-deriving the patch is a broken install, by design
 - `packages/core/src/index.ts` is created in T006; each later core task appends its own export line, so treat that file as shared and expect to rebase
 - One task = one branch = one PR = one Qodo review = merge. No commit lands on `main` directly
 - A verdict path never emits `allow`/`deny` without cited execution numbers; no measurement means `escalate`. This admits no time-pressure waiver (Constitution II)
