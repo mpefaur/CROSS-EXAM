@@ -73,12 +73,24 @@ export class CaseTable {
   /**
    * Compare-and-set. Records `verdict` and returns `null` when the case was undecided;
    * returns the standing verdict — leaving it in place — when it was already decided.
+   *
+   * The record is taken *before* the decision is delivered, so two resolutions racing on
+   * one case cannot both reach the harness. A delivery that then fails releases it.
    */
   decide(caseId: string, verdict: Verdict): Verdict | null {
     const standing = this.decided.get(caseId);
     if (standing !== undefined) return standing;
     this.decided.set(caseId, verdict);
     return null;
+  }
+
+  /**
+   * Drop a record whose decision never reached the harness. The guard exists to stop a
+   * second *delivered* decision (data-model §10); a held action whose approval was never
+   * answered is still undecided, and must stay resolvable.
+   */
+  release(caseId: string): void {
+    this.decided.delete(caseId);
   }
 }
 
@@ -215,6 +227,10 @@ async function runTurn(
  * Answer the held approval, once. `allow` and `deny` resolve it; `escalate` leaves it
  * pending — there is no auto-approving timeout, ever (data-model §10). A decision on a case
  * already decided is rejected and the standing verdict returned.
+ *
+ * The case is recorded before the turn is sent, so a race cannot deliver two decisions; if
+ * that turn then fails the record is released and the error propagates. Reporting a verdict
+ * the harness never received would be a decision with no execution behind it.
  */
 async function applyVerdict(bench: Bench, held: HeldAction, verdict: Verdict): Promise<Verdict> {
   const standing = bench.cases.decide(held.case_id, verdict);
@@ -223,14 +239,19 @@ async function applyVerdict(bench: Bench, held: HeldAction, verdict: Verdict): P
 
   const approval: TrueForgeApi.ApprovalDecision =
     verdict.verdict === 'allow' ? { status: 'allow' } : { status: 'deny', reason: verdict.reason };
-  await runTurn(bench, held.target_session_id, [
-    {
-      type: 'user.tool_approval',
-      threadId: held.thread_id,
-      toolCallId: held.approval_id,
-      approval,
-    },
-  ]);
+  try {
+    await runTurn(bench, held.target_session_id, [
+      {
+        type: 'user.tool_approval',
+        threadId: held.thread_id,
+        toolCallId: held.approval_id,
+        approval,
+      },
+    ]);
+  } catch (error) {
+    bench.cases.release(held.case_id);
+    throw error;
+  }
   return verdict;
 }
 

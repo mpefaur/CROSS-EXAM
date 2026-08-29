@@ -118,15 +118,25 @@ interface SentTurn {
 
 /**
  * A harness stand-in that records what the resolver sends and answers each new turn with
- * the next scripted turn. `createTurnStream` is the only method the resolver touches.
+ * the next scripted turn. `createTurnStream` is the only method the resolver touches;
+ * `failures` makes that many leading calls reject, standing in for an unreachable harness.
  */
-function fakeBench(replies: TurnRecord[], now = () => 0): Bench & { sent: SentTurn[] } {
+function fakeBench(
+  replies: TurnRecord[],
+  now = () => 0,
+  failures = 0,
+): Bench & { sent: SentTurn[] } {
   const sent: SentTurn[] = [];
   const queued = [...replies];
+  let remainingFailures = failures;
   const client = {
     sessions: {
       createTurnStream: async (sessionId: string, request: { input: TrueForgeApi.TurnInputItem[] }) => {
         sent.push({ sessionId, input: request.input });
+        if (remainingFailures > 0) {
+          remainingFailures -= 1;
+          throw new Error('harness unreachable');
+        }
         const next = queued.shift();
         const events = next === undefined ? [done('done')] : [...next.events.events];
         return (async function* () {
@@ -348,6 +358,22 @@ describe('resolveCase', () => {
     expect(verdict.verdict).toBe('escalate');
     expect(verdict.rule).toBe('2b');
     expect(bench.sent).toEqual([]);
+  });
+
+  it('releases the case when the approval turn fails, so the retry answers it', async () => {
+    // The guard stops a second *delivered* decision. A decision the harness never received
+    // leaves the action held, so it must stay resolvable (data-model §10).
+    const bench = fakeBench([], () => 0, 1);
+    const line = '✅1240 | 96310.00 | 0 | figures match';
+
+    await expect(resolveCase(bench, held, verdictTurn(line))).rejects.toThrow(
+      'harness unreachable',
+    );
+    const verdict = await resolveCase(bench, held, verdictTurn(line));
+
+    expect(verdict.verdict).toBe('allow');
+    expect(bench.sent).toHaveLength(2);
+    expect(bench.sent.every((sent) => sent.sessionId === TARGET_SESSION)).toBe(true);
   });
 
   it('rejects a second decision on the same case; the first stands', async () => {
