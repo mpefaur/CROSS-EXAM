@@ -69,8 +69,8 @@ and the processor does not reverse them. Narrow the criteria or justify the amou
   Constitution II); a difference comes back as guidance under rule 4, and the verdict is re-issued.
 - `⚖escalate` carries `📝` and MAY carry the measured triple (rule 3 — threshold exceeded —
   has a measurement; rules 1 and 2b have none for this proposal; an escalation after exhausted
-  guidance carries whatever `observed` was — rule 4/5 the proposal's measurement, rule 2a
-  possibly one taken on other criteria).
+  guidance carries whatever `observed.result` was — rule 4/5 the proposal's measurement, rule 2a
+  possibly one taken on other criteria, or nothing).
 - The `📝` reason on a `deny` MUST contain the measured figures, because that text is what
   the harness delivers back to the acting agent as `deny.reason` (FR-012).
 

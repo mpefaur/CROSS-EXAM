@@ -31,7 +31,8 @@ Obligations:
 5. Line order is irrelevant — index by key, not by position.
 6. `decodeMeasurement` accepts exactly `🧮`, `💰`, `♻` — all three required, `⚖`/`📝` are a
    parse failure. It is the executors' decoder for `measure.py` stdout
-   ([measurement-executor.md](./measurement-executor.md)).
+   ([measurement-executor.md](./measurement-executor.md)) and runs nowhere else — the Bench
+   builds `observed` from the `measure` tool's `structuredContent`, never from its text.
 7. `🔢` and `💵` are required on a proposal. Their absence is a parse failure and the caller
    maps it to `escalate` (FR-002).
 8. Numbers: `🔢` is a bare non-negative integer. `💵` and `💰` are `#.##` dollars, parsed to
@@ -59,4 +60,5 @@ and every malformed input class above has a test asserting `ok: false` (research
 The patched harness ([research.md](../research.md) D-14) also reads the `🧾` line — to turn the
 message into a tool call — but it maps lines to strings and validates nothing. `decodeProposal`
 runs in the Bench on the `model.message` content and is the only source of truth for what was
-proposed. The harness's synthesised arguments are never decoded by the Bench.
+proposed. The harness's synthesised arguments are never decoded by the Bench. `observed` is
+built from the `measure` tool result's `structuredContent`; no grammar text is decoded for it.

@@ -163,8 +163,12 @@ function, `decide(proposal, evaluatorVerdict, observed, state, config) → Outco
 age as the Bench tracks them (so `decide()` stays pure and the cap and the budget are unit
 testable),
 `evaluatorVerdict` is the `DecodeResult<EvaluatorVerdict>` of the Evaluator's message
-(data-model §9) and `observed` is the **last** `measure` tool result of the Evaluator's turn,
-as the Bench read it from the tool-result event (`null` when no call produced a result).
+(data-model §9) and `observed` is the **last** `measure` call of the Evaluator's turn as a
+`MeasureAttempt` (data-model §8) — the `criteria` and `table` it was called with, and its
+`result`, a `Measurement` or `null` when the call produced none — built by the Bench from the
+tool-result event's `structuredContent`; `observed` itself is `null` when the turn made no
+`measure` call. The last call, not the first: earlier calls are the model exploring; the last
+one is what its verdict rests on.
 `Outcome` is either a final `Verdict` or a `Guidance` — text the Bench sends the Evaluator as
 its next turn, carrying what was wrong and the observed figures, after which the re-issued
 verdict goes through `decide()` again. The rules apply in this exact order.
@@ -181,13 +185,16 @@ infrastructure condition and escalates under rule 2b.
 1. Proposal did not parse, or `🔢`/`💵` missing → **`escalate`** (FR-002, FR-025). No
    measurable proposal exists; this is the acting agent's message, not the Evaluator's.
 2. No observed measurement for this proposal:
-   - **2a** the Evaluator never called `measure`, or the last result's echoed
-     `criteria`/`table` differ from the proposal's `🔍` and `tableFor(action)` (data-model
-     §4) → **`Guidance`**: "measure the proposal's exact criteria on `<table>`".
-   - **2b** `measure` was called on the right criteria but produced nothing — both executors
+   - **2a** `observed === null` (the Evaluator never called `measure`), or `observed.criteria`/
+     `observed.table` differ from the proposal's `🔍` and `tableFor(action)` (data-model §4) →
+     **`Guidance`**: "measure the proposal's exact criteria on `<table>`".
+   - **2b** `observed` matches the proposal but `observed.result === null` — both executors
      failed or exceeded their 20 s budget — **or** the case's wall clock
      `CROSSEXAM_CASE_BUDGET_MS` expired, whatever was or was not called → **`escalate`**
      (FR-004, FR-010). Checked first within rule 2, before 2a.
+
+   Past rule 2, `observed.result` is a `Measurement`; rules 3–6 read its triple (written
+   `observed.count` / `.value` / `.duplicates` below for brevity).
 3. `observed.value > escalation_threshold` → **`escalate`**, citing the observed figures
    (FR-011).
 4. The Evaluator's message did not decode as a verdict, or on `⚖allow`/`⚖deny` (or whenever a
@@ -198,7 +205,7 @@ infrastructure condition and escalates under rule 2b.
    **`Guidance`**: the mismatch, line by line. It approved what its own measurement
    contradicts.
 6. Otherwise the Evaluator's verdict stands — `allow` or `deny`, with its `📝` — as a
-   `Verdict` with `evidence = observed` and `rule = '6'`.
+   `Verdict` with `evidence = observed.result` and `rule = '6'`.
 
 There is no "inconclusive" branch (spec, Clarification 3). The demo's first round is a
 `deny` the Evaluator writes itself (1,204 ≠ 7) and the second an `allow` it writes itself
@@ -458,14 +465,21 @@ Bench owns the pause — D-08, third alternative.
 streamable-HTTP, attached only to the Evaluator agent), exposes one tool, `measure`, with
 string arguments `criteria` and `table` (`charges` | `payouts`), annotated read-only and
 non-destructive so it needs no approval. It runs the resolution order of D-03 (sandbox
-first, local fallback, one fresh 20 s budget each) and returns the three grammar lines
-exactly as `measure.py` printed them as its text result, with `{executor, duration_ms,
-script_sha256, criteria, table}` in `structuredContent` — the echo is what lets rule 2a of D-06
-tie the result to the proposal. It reads the replica at `CROSSEXAM_REPLICA_PATH` and listens
+first, local fallback, one fresh 20 s budget each). On success it returns the three grammar
+lines exactly as `measure.py` printed them as its text result — what the Evaluator reads and
+cites — and the full `Measurement` as `structuredContent`: `{criteria, table, measured_count,
+measured_value_cents, duplicate_count, executor, duration_ms, script_sha256}`. On failure it
+returns `isError: true`, one reason line as text (`criteria did not parse`, `ledger malformed`,
+`both executors failed within 20 s`) and `{criteria, table, executor: null}` as
+`structuredContent`. `criteria` and `table` are always present, copied from the call's own
+arguments, so the Bench can tell a failed call on the proposal's criteria (D-06 rule 2b) from a
+call on other criteria (rule 2a). The Bench builds `observed` from `structuredContent` alone and
+never re-parses grammar text; `decodeMeasurement` runs only inside the executors, on
+`measure.py` stdout. It reads the replica at `CROSSEXAM_REPLICA_PATH` and listens
 on `CROSSEXAM_MEASURE_SERVER_URL`; the action server listens on `CROSSEXAM_ACTION_SERVER_URL`
 (data-model §12). `pnpm demo` starts both (T030). The Evaluator invokes it in the grammar —
 `🧾measure` / `🔍<criteria>` / `🗂<table>` — through the D-14 adapter. The Bench reads the
-tool-result event of the Evaluator's turn to obtain `observed` for `decide()` (D-06).
+last `measure` tool-result event of the Evaluator's turn to build `observed` for `decide()` (D-06).
 
 **Rationale**: The models make the tool calls; nothing deterministic decides for them. The
 action server (`packages/mcp`) must never open the replica, so measurement lives on its own

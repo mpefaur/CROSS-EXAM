@@ -151,11 +151,26 @@ that constructs one from reasoning.
 | `executor` | `'sandbox' \| 'local'` | Measurement | which transport produced it (FR-004) |
 | `duration_ms` | `integer` | Measurement | ≤ 20,000 per attempt (FR-010) |
 | `script_sha256` | `string` | Measurement | digest of the `measure.py` that ran — the same file on both transports |
-| `criteria` | `string` | Measurement | echoed from the `measure` call; D-06 rule 2a compares it to the proposal |
-| `table` | `'charges' \| 'payouts'` | Measurement | echoed; compared to `tableFor(action)` (§4) |
+| `criteria` | `string` | Measurement | copied from the `measure` call's argument — the same value as `MeasureAttempt.criteria` below |
+| `table` | `'charges' \| 'payouts'` | Measurement | likewise; D-06 rule 2a compares the attempt's `table` to `tableFor(action)` (§4) |
 
 Absence is a first-class state: `Measurement | null`. `null` means no measurement was
-produced, for any reason, and forces `escalate` (FR-010, D-06 rule 2b).
+produced, for any reason.
+
+**`MeasureAttempt`** — one `measure` call as the Bench sees it, built from the tool result's
+`structuredContent` ([contracts/measurement-executor.md](./contracts/measurement-executor.md)):
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `criteria` | `string` | what the call asked for; present on success and on failure |
+| `table` | `'charges' \| 'payouts'` | likewise |
+| `result` | `Measurement \| null` | `null` when the call produced no measurement — both executors failed, or the criteria did not parse |
+
+`decide()` receives `observed: MeasureAttempt | null` — the **last** `measure` call of the
+Evaluator's turn, `null` when the turn made none (research D-06). A `null` `observed`, or a
+`criteria`/`table` that differ from the proposal's, is guidance (rule 2a); a matching attempt
+with `result === null` escalates (rule 2b, FR-010). On success `result.criteria`/`result.table`
+repeat the attempt's own — the server writes both from the one argument it received.
 
 ## 9. EvaluatorVerdict, Outcome, Verdict
 
@@ -180,7 +195,7 @@ turn; the re-issued verdict goes through `decide()` again (research D-06). At mo
 | --- | --- | --- |
 | `verdict` | `'allow' \| 'deny' \| 'escalate'` | exactly one (FR-008) |
 | `reason` | `string` | the Evaluator's `📝`, or the escalation reason from rule 1/2b/3, or the last guidance message when 2a/4/5 exhausted the retries |
-| `evidence` | `Measurement \| null` | `observed`; `null` only when `verdict === 'escalate'` |
+| `evidence` | `Measurement \| null` | `observed.result`; `null` only when `verdict === 'escalate'` |
 | `rule` | `'1' \| '2a' \| '2b' \| '3' \| '4' \| '5' \| '6'` | which rule of research D-06 produced it; `'6'` = the Evaluator's verdict stood; `'2a'`, `'4'`, `'5'` appear only when the guidance retries are exhausted |
 
 **Invariant, enforced in one place and unit-tested** (Constitution II, FR-009):

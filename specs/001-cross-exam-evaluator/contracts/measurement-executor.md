@@ -26,9 +26,9 @@ python3 measure.py --ledger <path.json> --table <charges|payouts> --criteria '<e
 | Code | Meaning | Executor maps to |
 | --- | --- | --- |
 | `0` | measurement produced on stdout | a `Measurement` |
-| `2` | criteria did not parse under the grammar ([data-model.md](../data-model.md) §5) | no measurement → `escalate` (FR-025 → FR-010) |
-| `3` | ledger file missing or malformed | no measurement → `escalate` |
-| other | any failure | no measurement → `escalate` |
+| `2` | criteria did not parse under the grammar ([data-model.md](../data-model.md) §5) | `null` — no measurement (FR-025) |
+| `3` | ledger file missing or malformed | `null` — no measurement |
+| other | any failure | `null` — no measurement |
 
 `♻` counts rows matching the criteria that are **already irreversibly acted on** —
 `refunded=true` for `charges`. It is the duplicate trap, and it is counted by the script,
@@ -64,12 +64,19 @@ Two implementations, one behind each transport:
 `measure`, on the read-only server `packages/measure` (`@crossexam/measure`, research D-15),
 attached only to the Evaluator. Arguments `criteria` and `table` (strings; the harness passes
 them from the `🔍` and `🗂` lines). Non-destructive: no approval. It runs the resolution order
-below and returns the script's three lines verbatim as its text result, plus
-`{ executor, duration_ms, script_sha256, criteria, table }` as `structuredContent` — the echoed
-`criteria`/`table` let D-06 rule 2a tie the result to the proposal. It opens only
-`CROSSEXAM_REPLICA_PATH` and listens on `CROSSEXAM_MEASURE_SERVER_URL` (data-model §12). The Bench reads the
-**last** `measure` tool-result event of the Evaluator's turn to build `observed` for `decide()`
-(research D-06); it never runs the executors itself.
+below. It opens only `CROSSEXAM_REPLICA_PATH` and listens on `CROSSEXAM_MEASURE_SERVER_URL`
+(data-model §12).
+
+| Outcome | `isError` | text content | `structuredContent` |
+| --- | --- | --- | --- |
+| measurement produced | `false` | the script's three lines, verbatim — what the Evaluator reads and cites | the full `Measurement` (data-model §8): `{ criteria, table, measured_count, measured_value_cents, duplicate_count, executor, duration_ms, script_sha256 }` |
+| no measurement — exit `2`, exit `3`, or both executors failed / timed out | `true` | one reason line: `criteria did not parse: <detail>` · `ledger malformed: <detail>` · `both executors failed within 20 s` | `{ criteria, table, executor: null }` |
+
+`criteria` and `table` are always present, copied from the call's own arguments, so the Bench
+can tell a failed call on the proposal's criteria (D-06 rule 2b) from a call on other criteria
+(rule 2a). The Bench builds `observed: MeasureAttempt | null` (data-model §8) from the
+`structuredContent` of the **last** `measure` tool-result event of the Evaluator's turn; it
+never parses grammar text and never runs the executors itself (research D-06).
 
 ## Resolution order and the 20-second budget
 
@@ -77,8 +84,9 @@ below and returns the script's three lines verbatim as its text result, plus
 2. If it returns `null` — failure, or the signal fired — try `LocalExecutor` with its **own**
    fresh 20,000 ms signal (FR-010: "the fallback executor is then attempted under the same
    20-second limit").
-3. If that also returns `null`, the measurement is `null` and the verdict is `escalate`
-   under rule 2b. There is no third attempt and no retry loop.
+3. If that also returns `null`, the tool returns the failure row above; when the call was on
+   the proposal's criteria the verdict is `escalate` under rule 2b. There is no third attempt
+   and no retry loop.
 
 Worst case a single case spends 40 s across both attempts; **no single attempt exceeds
 20 s** (SC-011).
