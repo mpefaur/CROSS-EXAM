@@ -6,7 +6,7 @@
   "exports": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc -p .",
-    "seed": "tsx src/ledger/generate.ts",
+    "seed": "tsx src/ledger/seed.ts",
     "test": "vitest run"
   },
   "dependencies": {
