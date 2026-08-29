@@ -26,7 +26,8 @@ match what it promised, and the refund goes out for real.
 You cannot un-send a refund. That is the whole reason to look before, not after.
 
 *The figures above are a seeded demo scenario; the test data is built to produce them. The
-specification is finished; the code is not written yet. See [Status](#status).*
+grammar, the ledgers, the measurement, the verdict rules and the resolver are built and
+tested; the end-to-end demo wiring is the open item. See [Status](#status).*
 
 **Built by** 
 [@MicroProofs](https://github.com/MicroProofs) ·
@@ -167,18 +168,19 @@ Storage is seeded JSON fixtures, generated from fixed seeds and committed. No da
 ## Status
 
 `specs/001-cross-exam-evaluator/` holds the spec, plan, data model, contracts, quickstart,
-and a 51-task breakdown. No code exists yet: `packages/`, `apps/` and `fixtures/` are
-created by Phase 1, and the `pnpm` commands below do not run until then.
+and the task breakdown. Every task lands on its own branch and PR, reviewed by Qodo
+before merge (see [Review trail](#review-trail)).
 
 
-| Phase            | Delivers                                                        | State                             |
-| ---------------- | --------------------------------------------------------------- | --------------------------------- |
-| 1. Setup         | pnpm workspace; the `demo`/`test`/`lint`/`build` commands       | not started                       |
-| 2. Foundational  | emoji wire grammar, seeded ledgers                              | not started                       |
-| 3. **US1 (MVP)** | the measured denial loop, end to end                            | not started                       |
-| 4. US3           | every failure mode escalates to a human                         | not started                       |
-| 5. US2           | four conventional guardrails pass while the damage goes through | not started                       |
-| 6-8. US4/US5/US6 | parallel investigators, verdict card, docket                    | cut if Phase 3 misses the cutline |
+| Phase            | Delivers                                                        | State                                                        |
+| ---------------- | --------------------------------------------------------------- | ------------------------------------------------------------ |
+| 1. Setup         | pnpm workspace; the `demo`/`test`/`lint`/`build` commands       | done                                                         |
+| 2. Foundational  | emoji wire grammar, seeded ledgers, patched harness             | done                                                         |
+| 3. **US1 (MVP)** | the measured denial loop, end to end                            | resolver landed; `pnpm demo` wiring (T030) and the x3 determinism test (T031) open |
+| 4. US3           | every failure mode escalates to a human                         | escalate path audited (T034); scenario flags wait on T030   |
+| 5. US2           | four conventional guardrails pass while the damage goes through | checks landed (T037); charge-sheet wiring and trace open     |
+| 6-7. US4/US5     | parallel investigators, verdict card                            | not started; cut if the P1 loop misses the cutline           |
+| 8. US6           | the docket                                                      | append-only store landed (T044); recording from the resolver open |
 
 
 Scope is one day, roughly 4 net build hours, two people, one three-minute demo. Everything
@@ -249,23 +251,26 @@ demo underneath us:
 
 ## Getting started
 
-> These commands land with Phase 1. Until then, `pnpm install` has no workspace to install.
-
 **Prerequisites** (the full table is in [quickstart.md](specs/001-cross-exam-evaluator/quickstart.md)):
 
 
 | Requirement                                        | Check                                  |
 | -------------------------------------------------- | -------------------------------------- |
 | Node ≥ 22.14                                       | `node -v`                              |
-| pnpm 9                                             | `pnpm -v`                              |
+| pnpm 11.4.0                                        | `pnpm -v`                              |
 | Python 3                                           | `python3 --version`                    |
-| TrueForge on `:8790`                               | `npx @truefoundry/trueforge@0.1.4`     |
+| TrueForge on `:8790`                               | `pnpm exec trueforge` from the workspace root — never `npx`; the harness patch applies at `pnpm install` |
+| Grammar registry in the harness environment        | `echo $CROSSEXAM_GRAMMAR_REGISTRY_PATH` |
 | Model provider key                                 | `OPENAI_API_KEY`                       |
 
 
 ```bash
 cp .env.example .env     # fill in real values; .env is gitignored
 pnpm install
+
+# in its own terminal, from the workspace root — unset registry path means a stock harness
+export CROSSEXAM_GRAMMAR_REGISTRY_PATH=packages/core/src/grammar/registry.json
+pnpm exec trueforge
 
 pnpm demo                # one full seeded run of the denial loop
 pnpm test                # the seeded scenario x3 (determinism) + three unit suites
@@ -302,13 +307,22 @@ constitution → specify → clarify → plan → tasks → analyze → implemen
 - **One task = one branch = one PR = one Qodo review = merge.** Nothing lands on `main`
 directly, and a review trail cannot be fabricated retroactively.
 - **A task is done only when a real command proves it.** The seeded end-to-end scenario is
-the required test; unit tests exist for exactly three pure functions, where each is
-cheaper than re-running that scenario.
+the required test; unit tests exist only where each is cheaper than re-running that
+scenario.
 - **New scope discovered mid-implementation gets cut, not added to the spec.**
 
 **Before running** `/speckit.implement`**, read
 [docs/parallel-implementation.md**](docs/parallel-implementation.md) for the wave plan, the
 four lanes, and the multi-writer files that the `[P]` markers in `tasks.md` do not protect.
+
+### Review trail
+
+Every PR gets a Qodo `/agentic_review` on open and again after fix commits. Each finding
+is answered in writing — confirmed by a real command, challenged, or dismissed with the
+reason — before merge; a merge on a stale review is a fabricated trail. The protocol is
+[docs/qodo-playbook.md](docs/qodo-playbook.md); the trail itself is the
+[merged PR list](https://github.com/mpefaur/CROSS-EXAM/pulls?q=is%3Apr+is%3Amerged), one PR
+per task, each body naming its task and FR/SC.
 
 Agent behavior is governed by [AGENTS.md](AGENTS.md), the canonical contract every agent
 reads; [CLAUDE.md](CLAUDE.md) imports it and adds Claude-specific detail. Token discipline
