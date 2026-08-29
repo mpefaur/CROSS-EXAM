@@ -15,11 +15,14 @@
 import type { Charge, Ledger, Payout } from '../model/entities.ts';
 
 /**
- * Frozen fixture date. Nothing in the spec pins it; it is chosen here so that every
- * `age_days` — and therefore every `opened_at` — is deterministic forever.
+ * Frozen fixture date, pinned by `contracts/charge-sheet.md` — the orchestrator hands the
+ * Evaluator `replica.as_of = "2026-08-29"`, so the generator emits that same day and dates
+ * every row from the same epoch. The two must move together: `opened_at` and `refunded_at`
+ * are `as_of` minus a materialized `age_days`, so a mismatched epoch would put the rows a
+ * different distance from the date the Evaluator is told the replica was taken.
  */
-const AS_OF = '2026-08-01';
-const AS_OF_EPOCH_MS = Date.UTC(2026, 7, 1);
+const AS_OF = '2026-08-29';
+const AS_OF_EPOCH_MS = Date.UTC(2026, 7, 29);
 const MS_PER_DAY = 86_400_000;
 
 /** A customer holds several charges (data-model §1): 1,500 charges over 400 customers. */
