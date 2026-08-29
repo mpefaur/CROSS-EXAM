@@ -278,7 +278,7 @@ earlier verdict is retrievable.
   tool-usage mistake, not a data condition: the system MUST return it to the Evaluator with
   the measured figures as guidance and read the re-issued verdict, and MUST NOT execute on
   it. The Evaluator does not decide escalation: a `⚖escalate` it writes is a malformed verdict
-  and is returned as guidance like any other. Guidance is given a configured number of times per held action (default three); the
+  and is returned as guidance like any other. Guidance is given a configured number of times per held action; the
   next incorrect verdict means no valid verdict can be obtained and the action escalates.
 - **FR-012**: A `deny` verdict MUST carry a reason containing the measured figures, and
   that reason MUST be delivered to the acting agent.
@@ -332,8 +332,7 @@ earlier verdict is retrievable.
   unambiguous: they cost fewer tokens than a spelled-out field name and they raise parse
   accuracy on small models. The key set is the registry in
   [docs/emoji-grammar.md](../../docs/emoji-grammar.md), which is the single source of
-  truth both agents encode and decode against. The harness's own envelope around a denied
-  call (its native tool-result wrapper) is outside the grammar and outside this requirement.
+  truth both agents encode and decode against.
 - **FR-025**: A proposal that does not parse under that grammar MUST NOT be re-parsed
   under a looser one, and no undelimited field value may be inferred. An unparseable
   proposal yields no measurement and therefore `escalate` under FR-010.
