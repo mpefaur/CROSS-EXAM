@@ -1,0 +1,22 @@
+{
+  "name": "@crossexam/measure",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@crossexam/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "4.5.2"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.0",
+    "tsx": "4.23.12",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

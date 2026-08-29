@@ -99,6 +99,31 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))
 
+  packages/measure:
+    dependencies:
+      '@crossexam/core':
+        specifier: workspace:*
+        version: link:../core
+      '@modelcontextprotocol/sdk':
+        specifier: 1.30.0
+        version: 1.30.0(zod@4.5.2)
+      zod:
+        specifier: 4.5.2
+        version: 4.5.2
+    devDependencies:
+      '@types/node':
+        specifier: 26.4.0
+        version: 26.4.0
+      tsx:
+        specifier: 4.23.12
+        version: 4.23.12
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))
+
 packages:
 
   '@ai-sdk/alibaba@2.0.37':
@@ -2446,57 +2471,57 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/alibaba@2.0.37(zod@4.4.3)':
+  '@ai-sdk/alibaba@2.0.37(zod@4.5.2)':
     dependencies:
       '@ai-sdk/provider': 4.0.8
-      '@ai-sdk/provider-utils': 5.0.32(zod@4.4.3)
-      zod: 4.4.3
+      '@ai-sdk/provider-utils': 5.0.32(zod@4.5.2)
+      zod: 4.5.2
 
-  '@ai-sdk/anthropic@4.0.44(zod@4.4.3)':
+  '@ai-sdk/anthropic@4.0.44(zod@4.5.2)':
     dependencies:
       '@ai-sdk/provider': 4.0.8
-      '@ai-sdk/provider-utils': 5.0.32(zod@4.4.3)
-      zod: 4.4.3
+      '@ai-sdk/provider-utils': 5.0.32(zod@4.5.2)
+      zod: 4.5.2
 
-  '@ai-sdk/gateway@4.0.67(zod@4.4.3)':
+  '@ai-sdk/gateway@4.0.67(zod@4.5.2)':
     dependencies:
       '@ai-sdk/provider': 4.0.8
-      '@ai-sdk/provider-utils': 5.0.32(zod@4.4.3)
+      '@ai-sdk/provider-utils': 5.0.32(zod@4.5.2)
       '@vercel/oidc': 3.2.0
-      zod: 4.4.3
+      zod: 4.5.2
 
-  '@ai-sdk/google@4.0.56(zod@4.4.3)':
+  '@ai-sdk/google@4.0.56(zod@4.5.2)':
     dependencies:
       '@ai-sdk/provider': 4.0.8
-      '@ai-sdk/provider-utils': 5.0.32(zod@4.4.3)
-      zod: 4.4.3
+      '@ai-sdk/provider-utils': 5.0.32(zod@4.5.2)
+      zod: 4.5.2
 
-  '@ai-sdk/moonshotai@3.0.41(zod@4.4.3)':
+  '@ai-sdk/moonshotai@3.0.41(zod@4.5.2)':
     dependencies:
       '@ai-sdk/provider': 4.0.8
-      '@ai-sdk/provider-utils': 5.0.32(zod@4.4.3)
-      zod: 4.4.3
+      '@ai-sdk/provider-utils': 5.0.32(zod@4.5.2)
+      zod: 4.5.2
 
-  '@ai-sdk/openai-compatible@3.0.39(zod@4.4.3)':
+  '@ai-sdk/openai-compatible@3.0.39(zod@4.5.2)':
     dependencies:
       '@ai-sdk/provider': 4.0.8
-      '@ai-sdk/provider-utils': 5.0.32(zod@4.4.3)
-      zod: 4.4.3
+      '@ai-sdk/provider-utils': 5.0.32(zod@4.5.2)
+      zod: 4.5.2
 
-  '@ai-sdk/openai@4.0.50(zod@4.4.3)':
+  '@ai-sdk/openai@4.0.50(zod@4.5.2)':
     dependencies:
       '@ai-sdk/provider': 4.0.8
-      '@ai-sdk/provider-utils': 5.0.32(zod@4.4.3)
-      zod: 4.4.3
+      '@ai-sdk/provider-utils': 5.0.32(zod@4.5.2)
+      zod: 4.5.2
 
-  '@ai-sdk/provider-utils@5.0.32(zod@4.4.3)':
+  '@ai-sdk/provider-utils@5.0.32(zod@4.5.2)':
     dependencies:
       '@ai-sdk/provider': 4.0.8
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.1
       undici: 7.29.0
-      zod: 4.4.3
+      zod: 4.5.2
 
   '@ai-sdk/provider@4.0.8':
     dependencies:
@@ -2513,6 +2538,11 @@ snapshots:
     dependencies:
       openapi3-ts: 4.6.1
       zod: 4.4.3
+
+  '@asteasolutions/zod-to-openapi@9.1.0(zod@4.5.2)':
+    dependencies:
+      openapi3-ts: 4.6.1
+      zod: 4.5.2
 
   '@aws-sdk/checksums@3.1000.29':
     dependencies:
@@ -2893,10 +2923,23 @@ snapshots:
       openapi3-ts: 4.6.1
       zod: 4.4.3
 
+  '@hono/zod-openapi@1.6.1(hono@4.13.5)(zod@4.5.2)':
+    dependencies:
+      '@asteasolutions/zod-to-openapi': 9.1.0(zod@4.5.2)
+      '@hono/zod-validator': 0.9.0(hono@4.13.5)(zod@4.5.2)
+      hono: 4.13.5
+      openapi3-ts: 4.6.1
+      zod: 4.5.2
+
   '@hono/zod-validator@0.9.0(hono@4.13.5)(zod@4.4.3)':
     dependencies:
       hono: 4.13.5
       zod: 4.4.3
+
+  '@hono/zod-validator@0.9.0(hono@4.13.5)(zod@4.5.2)':
+    dependencies:
+      hono: 4.13.5
+      zod: 4.5.2
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -3362,28 +3405,28 @@ snapshots:
 
   '@truefoundry/trueforge-core@0.1.4(@aws-sdk/credential-provider-node@3.972.81)(@smithy/signature-v4@5.7.3)(hono@4.13.5)(redis@5.12.1(@opentelemetry/api@1.9.1))(undici@7.29.0)':
     dependencies:
-      '@ai-sdk/alibaba': 2.0.37(zod@4.4.3)
-      '@ai-sdk/anthropic': 4.0.44(zod@4.4.3)
-      '@ai-sdk/google': 4.0.56(zod@4.4.3)
-      '@ai-sdk/moonshotai': 3.0.41(zod@4.4.3)
-      '@ai-sdk/openai': 4.0.50(zod@4.4.3)
-      '@ai-sdk/openai-compatible': 3.0.39(zod@4.4.3)
+      '@ai-sdk/alibaba': 2.0.37(zod@4.5.2)
+      '@ai-sdk/anthropic': 4.0.44(zod@4.5.2)
+      '@ai-sdk/google': 4.0.56(zod@4.5.2)
+      '@ai-sdk/moonshotai': 3.0.41(zod@4.5.2)
+      '@ai-sdk/openai': 4.0.50(zod@4.5.2)
+      '@ai-sdk/openai-compatible': 3.0.39(zod@4.5.2)
       '@ai-sdk/provider': 4.0.8
-      '@ai-sdk/provider-utils': 5.0.32(zod@4.4.3)
+      '@ai-sdk/provider-utils': 5.0.32(zod@4.5.2)
       '@daytona/sdk': 0.204.1
-      '@hono/zod-openapi': 1.6.1(hono@4.13.5)(zod@4.4.3)
-      '@modelcontextprotocol/sdk': 1.30.0(zod@4.4.3)
+      '@hono/zod-openapi': 1.6.1(hono@4.13.5)(zod@4.5.2)
+      '@modelcontextprotocol/sdk': 1.30.0(zod@4.5.2)
       '@nats-io/nats-core': 3.0.2
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.10.0(@opentelemetry/api@1.9.1)
-      ai: 7.0.83(zod@4.4.3)
+      ai: 7.0.83(zod@4.5.2)
       dedent: 1.7.2
-      openai: 7.8.0(@aws-sdk/credential-provider-node@3.972.81)(@smithy/signature-v4@5.7.3)(undici@7.29.0)(ws@8.21.3)(zod@4.4.3)
+      openai: 7.8.0(@aws-sdk/credential-provider-node@3.972.81)(@smithy/signature-v4@5.7.3)(undici@7.29.0)(ws@8.21.3)(zod@4.5.2)
       redis: 5.12.1(@opentelemetry/api@1.9.1)
       ulid: 3.0.2
       winston: 3.19.0
       ws: 8.21.3
-      zod: 4.4.3
+      zod: 4.5.2
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@cfworker/json-schema'
@@ -3607,12 +3650,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  ai@7.0.83(zod@4.4.3):
+  ai@7.0.83(zod@4.5.2):
     dependencies:
-      '@ai-sdk/gateway': 4.0.67(zod@4.4.3)
+      '@ai-sdk/gateway': 4.0.67(zod@4.5.2)
       '@ai-sdk/provider': 4.0.8
-      '@ai-sdk/provider-utils': 5.0.32(zod@4.4.3)
-      zod: 4.4.3
+      '@ai-sdk/provider-utils': 5.0.32(zod@4.5.2)
+      zod: 4.5.2
 
   ajv-formats@3.0.1(ajv@8.20.0):
     optionalDependencies:
@@ -4353,13 +4396,13 @@ snapshots:
     dependencies:
       fn.name: 1.1.0
 
-  openai@7.8.0(@aws-sdk/credential-provider-node@3.972.81)(@smithy/signature-v4@5.7.3)(undici@7.29.0)(ws@8.21.3)(zod@4.4.3):
+  openai@7.8.0(@aws-sdk/credential-provider-node@3.972.81)(@smithy/signature-v4@5.7.3)(undici@7.29.0)(ws@8.21.3)(zod@4.5.2):
     optionalDependencies:
       '@aws-sdk/credential-provider-node': 3.972.81
       '@smithy/signature-v4': 5.7.3
       undici: 7.29.0
       ws: 8.21.3
-      zod: 4.4.3
+      zod: 4.5.2
 
   openapi3-ts@4.6.1:
     dependencies:
