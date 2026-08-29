@@ -76,7 +76,7 @@ and the processor does not reverse them. Narrow the criteria or justify the amou
 
 ## Resolution
 
-The orchestrator first runs `decide(proposal, evaluatorVerdict, observed, config)` (research
+The orchestrator first runs `decide(proposal, evaluatorVerdict, observed, state, config)` (research
 D-06). Its `Outcome` is either a `Guidance` — the orchestrator sends the message as the
 Evaluator's next turn and runs `decide()` on the re-issued verdict, at most
 `CROSSEXAM_EVALUATOR_RETRIES` times per held action, after which the next failure is an
