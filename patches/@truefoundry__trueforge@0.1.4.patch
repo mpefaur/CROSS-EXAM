@@ -1,0 +1,216 @@
+diff --git a/dist/grammarToolCallLLM.d.ts b/dist/grammarToolCallLLM.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..4ae582b4ace815675cedff398b9491864378fecc
+--- /dev/null
++++ b/dist/grammarToolCallLLM.d.ts
+@@ -0,0 +1,18 @@
++import type { ILLM } from "@truefoundry/trueforge-core/core";
++
++export interface GrammarRegistry {
++  tools: Set<string>;
++  keys: Map<string, string>;
++}
++export declare function loadGrammarRegistry(raw?: string | undefined): GrammarRegistry | null;
++export declare function describeGrammarRegistry(registry: GrammarRegistry | null): string;
++export declare function stripGrammarFromRequest<T extends { messages: unknown[]; tools?: unknown[] }>(body: T, registry: GrammarRegistry): T;
++export declare function synthesizeToolCall(
++  output: { content?: unknown; tool_calls?: unknown[] | undefined },
++  registry: GrammarRegistry
++): { id: string; type: "function"; function: { name: string; arguments: string } } | null;
++export declare class GrammarToolCallLLM implements ILLM {
++  constructor(inner: ILLM, registry: GrammarRegistry);
++  create: ILLM["create"];
++  createNonStream: ILLM["createNonStream"];
++}
+diff --git a/dist/grammarToolCallLLM.js b/dist/grammarToolCallLLM.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..9c1a8d53e5c9d7fa25334f179a70a2885d8e66d7
+--- /dev/null
++++ b/dist/grammarToolCallLLM.js
+@@ -0,0 +1,142 @@
++// CROSS-EXAM patch (research D-14): a registry-driven emoji-lines-to-tool-call adapter
++// around the harness's ILLM. Read once at start from CROSSEXAM_GRAMMAR_REGISTRY:
++//
++//   {"$tools":["bulk_refund",...], "🧾":"$tool", "🔍":"criteria", ...}
++//
++// In: tool schemas named in $tools never reach the model; prior grammar tool_calls are
++// dropped from history and their role:tool results become role:user text.
++// Out: on the final message, lines whose first codepoint is a registered key become
++// one synthesised tool_call; content is left as the model wrote it.
++// No product knowledge lives here — no guardrail, rule, or measurement.
++import { randomUUID } from "crypto";
++
++export function loadGrammarRegistry(raw = process.env.CROSSEXAM_GRAMMAR_REGISTRY) {
++  if (raw === undefined || raw === "") {
++    return null;
++  }
++  let parsed;
++  try {
++    parsed = JSON.parse(raw);
++  } catch {
++    // The value is deliberately absent from every message below (FR-023).
++    throw new Error("CROSSEXAM_GRAMMAR_REGISTRY is not valid JSON");
++  }
++  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
++    throw new Error("CROSSEXAM_GRAMMAR_REGISTRY must be a JSON object");
++  }
++  if (!Array.isArray(parsed.$tools)) {
++    throw new Error('CROSSEXAM_GRAMMAR_REGISTRY: "$tools" must be an array of tool names');
++  }
++  const keys = new Map();
++  let toolKey = null;
++  for (const [key, field] of Object.entries(parsed)) {
++    if (key === "$tools") {
++      continue;
++    }
++    if ([...key].length !== 1) {
++      throw new Error("CROSSEXAM_GRAMMAR_REGISTRY: every key must be one codepoint");
++    }
++    if (field === "$tool") {
++      toolKey = key;
++    }
++    keys.set(key, field);
++  }
++  if (toolKey === null) {
++    throw new Error('CROSSEXAM_GRAMMAR_REGISTRY: no key is mapped to "$tool"');
++  }
++  return { tools: new Set(parsed.$tools), keys };
++}
++
++export function describeGrammarRegistry(registry) {
++  if (registry === null) {
++    return "Grammar tool-call adapter: inert (CROSSEXAM_GRAMMAR_REGISTRY unset)";
++  }
++  return `Grammar tool-call adapter: ${String(registry.keys.size)} keys, $tools=[${[...registry.tools].join(", ")}]`;
++}
++
++export function stripGrammarFromRequest(body, registry) {
++  const grammarCallIds = new Set();
++  const withoutCalls = body.messages.map((msg) => {
++    if (msg.role !== "assistant" || !msg.tool_calls?.length) {
++      return msg;
++    }
++    const kept = msg.tool_calls.filter((call) => {
++      const isGrammar = registry.tools.has(call.function.name);
++      if (isGrammar) {
++        grammarCallIds.add(call.id);
++      }
++      return !isGrammar;
++    });
++    if (kept.length === msg.tool_calls.length) {
++      return msg;
++    }
++    const { tool_calls: _dropped, ...rest } = msg;
++    return kept.length > 0 ? { ...rest, tool_calls: kept } : rest;
++  });
++  const messages = withoutCalls.map(
++    (msg) => msg.role === "tool" && grammarCallIds.has(msg.tool_call_id) ? { role: "user", content: msg.content } : msg
++  );
++  const tools = body.tools?.filter((tool) => !(tool.type === "function" && registry.tools.has(tool.function.name)));
++  const { tools: _all, ...rest } = body;
++  return tools?.length ? { ...rest, messages, tools } : { ...rest, messages };
++}
++
++function contentText(content) {
++  if (typeof content === "string") {
++    return content;
++  }
++  return (content ?? []).filter((part) => part.type === "text").map((part) => part.text).join("\n");
++}
++
++export function synthesizeToolCall(output, registry) {
++  if (output.tool_calls?.length) {
++    return null;
++  }
++  let name = null;
++  const args = {};
++  for (const line of contentText(output.content).split("\n")) {
++    const [key] = line;
++    const field = key === undefined ? undefined : registry.keys.get(key);
++    if (field === undefined) {
++      continue;
++    }
++    let value = line.slice(key.length);
++    if (value.startsWith("\uFE0F")) {
++      value = value.slice(1);
++    }
++    if (field === "$tool") {
++      name = value;
++    } else {
++      args[field] = value;
++    }
++  }
++  if (name === null) {
++    return null;
++  }
++  return {
++    id: `call_${randomUUID().replaceAll("-", "")}`,
++    type: "function",
++    function: { name, arguments: JSON.stringify(args) }
++  };
++}
++
++export class GrammarToolCallLLM {
++  constructor(inner, registry) {
++    this.inner = inner;
++    this.registry = registry;
++  }
++  async *create(body) {
++    const result = yield* this.inner.create(stripGrammarFromRequest(body, this.registry));
++    return this.finish(result);
++  }
++  async createNonStream(body) {
++    return this.finish(await this.inner.createNonStream(stripGrammarFromRequest(body, this.registry)));
++  }
++  finish(result) {
++    const call = synthesizeToolCall(result.output, this.registry);
++    if (call === null) {
++      return result;
++    }
++    return { ...result, finish_reason: "tool_calls", output: { ...result.output, tool_calls: [call] } };
++  }
++}
+diff --git a/dist/main.js b/dist/main.js
+index ef38f43d24c3d95115a63f3f8a807b858cc02e08..9e825e7d47c006505083a31e9d306373525cace0 100644
+--- a/dist/main.js
++++ b/dist/main.js
+@@ -9760,6 +9760,12 @@ import {
+ } from "@truefoundry/trueforge-core/core";
+ import { HTTPException as HTTPException4 } from "hono/http-exception";
+ import { streamSSE } from "hono/streaming";
++import {
++  describeGrammarRegistry,
++  GrammarToolCallLLM,
++  loadGrammarRegistry
++} from "./grammarToolCallLLM.js";
++var GRAMMAR_REGISTRY = loadGrammarRegistry();
+ 
+ // src/routes/turnRoutes.ts
+ import { createRoute as createRoute12, z as z24 } from "@hono/zod-openapi";
+@@ -10324,12 +10330,13 @@ function createTurnResolver(deps) {
+         name,
+         store: modelProviderStore
+       });
++      const modelClient = new VercelAILLM({
++        providerConfig,
++        logger,
++        signal
++      });
+       return {
+-        modelClient: new VercelAILLM({
+-          providerConfig,
+-          logger,
+-          signal
+-        }),
++        modelClient: GRAMMAR_REGISTRY === null ? modelClient : new GrammarToolCallLLM(modelClient, GRAMMAR_REGISTRY),
+         defaultModelParams
+       };
+     },
+@@ -11749,6 +11756,7 @@ try {
+     standalone: configuration2.STANDALONE,
+     version: PACKAGE_VERSION
+   });
++  logger.info(describeGrammarRegistry(GRAMMAR_REGISTRY));
+   if (configuration2.STANDALONE) {
+     printStandaloneStartupBanner({ version: PACKAGE_VERSION, color: shouldColorize() });
+     await prepareCodeModeSocketParent({ path: configuration2.CODE_MODE_SOCKET_PARENT, logger });
