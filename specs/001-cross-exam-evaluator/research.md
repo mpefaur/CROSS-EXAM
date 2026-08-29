@@ -477,8 +477,8 @@ one fresh 20 s budget. On success it returns the one `🧮` line
 exactly as `measure.py` printed it as its text result — what the Evaluator reads and cites —
 and the full `Measurement` as `structuredContent`: `{criteria, table, measured_count,
 measured_value_cents, duplicate_count, executor, duration_ms, script_sha256}`. On failure it
-returns `isError: true`, one reason line as text (`criteria did not parse`, `ledger malformed`,
-`executor failed within 20 s`) and `{criteria, table, executor: null}` as
+returns `isError: true`, one line as text (`no measurement: <criteria> on <table>` — `measure()`
+returns `null` for every failure, so no reason is distinguished) and `{criteria, table, executor: null}` as
 `structuredContent`. `criteria` and `table` are always present, copied from the call's own
 arguments, so the Bench can tell a failed call on the proposal's criteria (D-06 rule 2b) from a
 call on other criteria (rule 2a). The Bench builds `observed` from `structuredContent` alone and
