@@ -48,12 +48,12 @@ export async function ensureAgents(
   const target = await upsertAgent(client, config.target_agent_name, {
     model: { name: config.target_model },
     instructions: instructions.target,
-    mcpServers: [{ name: ACTION_SERVER, requireApprovalForTools: ['@all'] }],
+    mcpServers: [{ name: ACTION_SERVER, preload: true, requireApprovalForTools: ['@all'] }],
   });
   const evaluator = await upsertAgent(client, config.evaluator_agent_name, {
     model: { name: config.evaluator_model },
     instructions: instructions.evaluator,
-    mcpServers: [{ name: MEASURE_SERVER }],
+    mcpServers: [{ name: MEASURE_SERVER, preload: true }],
   });
   return { target, evaluator };
 }
