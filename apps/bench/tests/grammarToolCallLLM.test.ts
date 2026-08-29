@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fileURLToPath } from 'node:url';
 
 // The adapter ships inside the pnpm patch of the harness (research D-14), so the test
 // reaches it through the installed package rather than a workspace source file.
@@ -6,15 +7,18 @@ import {
   describeGrammarRegistry,
   GrammarToolCallLLM,
   loadGrammarRegistry,
+  parseGrammarRegistry,
   stripGrammarFromRequest,
   synthesizeToolCall,
 } from '../node_modules/@truefoundry/trueforge/dist/grammarToolCallLLM.js';
 
-const RAW =
-  '{"🧾":["bulk_refund","criteria","declared_count","declared_value"],"💸":["issue_payout","criteria","declared_count","declared_value"],"🔒":["close_account","criteria","declared_count","declared_value"],"📏":["measure","criteria","table"]}';
+// The one registry file: the decoders import it, the harness reads it by path (D-14).
+const REGISTRY_PATH = fileURLToPath(
+  new URL('../../../packages/core/src/grammar/registry.json', import.meta.url),
+);
 
 const registry = () => {
-  const r = loadGrammarRegistry(RAW);
+  const r = loadGrammarRegistry(REGISTRY_PATH);
   if (r === null) throw new Error('registry must load');
   return r;
 };
@@ -24,39 +28,45 @@ describe('loadGrammarRegistry', () => {
     expect(loadGrammarRegistry(undefined)).toBeNull();
     expect(loadGrammarRegistry('')).toBeNull();
     expect(describeGrammarRegistry(null)).toBe(
-      'Grammar tool-call adapter: inert (CROSSEXAM_GRAMMAR_REGISTRY unset)',
+      'Grammar tool-call adapter: inert (CROSSEXAM_GRAMMAR_REGISTRY_PATH unset)',
     );
   });
 
-  it('reads one tool per emoji with its argument names in field order', () => {
+  it('reads the real registry file: one tool per emoji, field names in order, non-tool kinds skipped', () => {
     const r = registry();
     expect(r.tools.get('🧾')).toEqual({
       name: 'bulk_refund',
       args: ['criteria', 'declared_count', 'declared_value'],
     });
     expect(r.tools.get('📏')).toEqual({ name: 'measure', args: ['criteria', 'table'] });
+    expect(r.tools.has('🧮')).toBe(false);
+    expect(r.tools.has('✅')).toBe(false);
     expect([...r.names]).toEqual(['bulk_refund', 'issue_payout', 'close_account', 'measure']);
     expect(describeGrammarRegistry(r)).toBe(
-      'Grammar tool-call adapter: 4 keys, tools=[bulk_refund, issue_payout, close_account, measure]',
+      'Grammar tool-call adapter: 4 tool keys, tools=[bulk_refund, issue_payout, close_account, measure]',
     );
   });
 
-  it('rejects malformed input by naming the variable, never the value (FR-023)', () => {
+  it('names the variable and the path, never the file contents, on a bad file (FR-023)', () => {
+    expect(() => loadGrammarRegistry('/nonexistent/registry.json')).toThrow(
+      'CROSSEXAM_GRAMMAR_REGISTRY_PATH: cannot read /nonexistent/registry.json',
+    );
     const value = 'Xq7Zm2Kv9Rb4Tn6Wy8Ld3Hf5Jc1Pg0';
     const cases: Array<[string, RegExp]> = [
-      [`{${value}`, /^CROSSEXAM_GRAMMAR_REGISTRY is not valid JSON$/],
-      ['null', /^CROSSEXAM_GRAMMAR_REGISTRY must be a JSON object$/],
-      [`["${value}"]`, /^CROSSEXAM_GRAMMAR_REGISTRY must be a JSON object$/],
-      [`{"🧾":"${value}"}`, /every entry must be \[tool_name, \.\.\.argument_names\]/],
-      [`{"🧾":[]}`, /every entry must be \[tool_name, \.\.\.argument_names\]/],
-      [`{"🧾":["${value}",3]}`, /every entry must be \[tool_name, \.\.\.argument_names\]/],
-      [`{"${value}":["bulk_refund"]}`, /every key must be one codepoint/],
-      ['{}', /no tool key/],
+      [`{${value}`, /^CROSSEXAM_GRAMMAR_REGISTRY_PATH: the registry file is not valid JSON$/],
+      ['null', /the registry must be a JSON object/],
+      [`["${value}"]`, /the registry must be a JSON object/],
+      [`{"🧾":"${value}"}`, /every entry must be an object with a "kind"/],
+      [`{"🧾":{"kind":"tool","tool":"${value}"}}`, /a tool entry needs a "tool" name and string "fields"/],
+      [`{"🧾":{"kind":"tool","tool":"${value}","fields":[3]}}`, /a tool entry needs a "tool" name and string "fields"/],
+      [`{"${value}":{"kind":"tool","tool":"bulk_refund","fields":[]}}`, /every key must be one codepoint/],
+      ['{}', /no tool entry/],
+      [`{"🧮":{"kind":"measurement","fields":["a"]}}`, /no tool entry/],
     ];
     for (const [raw, message] of cases) {
       let thrown: unknown;
       try {
-        loadGrammarRegistry(raw);
+        parseGrammarRegistry(raw);
       } catch (e) {
         thrown = e;
       }

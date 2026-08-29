@@ -111,21 +111,19 @@ When adding a new key, in this order:
    The saving is this format's whole reason to exist; it is not assumed.
 6. **Never reuse** an emoji already listed for another message kind.
 
-## Registry as configuration
+## The registry file
 
-The harness adapter (research D-14) reads the **tool** keys from `CROSSEXAM_GRAMMAR_REGISTRY`,
-not from code: emoji → `[tool_name, ...argument_names]`, one entry per tool key, argument
-names in field order. The measurement and verdict keys are not tool calls and are not in it;
-the Bench decodes those.
+The registry **is** [`packages/core/src/grammar/registry.json`](../packages/core/src/grammar/registry.json):
+one entry per emoji with its `kind` (`tool` · `measurement` · `verdict`), the tool or verdict
+it names, and `fields` in order — the arity is the field count. The tables above explain
+that file; they do not replace it. Two readers, one source:
 
-```json
-{"🧾":["bulk_refund","criteria","declared_count","declared_value"],
- "💸":["issue_payout","criteria","declared_count","declared_value"],
- "🔒":["close_account","criteria","declared_count","declared_value"],
- "📏":["measure","criteria","table"]}
-```
+- the grammar decoders in `packages/core/src/grammar/index.ts` import it;
+- the harness adapter (research D-14) reads it at start from the path in
+  `CROSSEXAM_GRAMMAR_REGISTRY_PATH` and acts on the `tool` entries only — the measurement
+  and verdict lines are not tool calls, the Bench decodes those.
 
-A key added here is added there in the same PR (§ Maintenance).
+A key added to the file is added to the tables above in the same PR (§ Maintenance).
 
 ## Invariant
 

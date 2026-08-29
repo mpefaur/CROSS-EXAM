@@ -1,9 +1,9 @@
 /**
  * Emoji wire grammar — encoder and decoders (FR-024, FR-025).
  *
- * Key registry: `docs/emoji-grammar.md`. Parser obligations:
- * `specs/001-cross-exam-evaluator/contracts/wire-grammar.md`. Nothing here duplicates the
- * registry's rationale; it implements it.
+ * Key registry: `./registry.json` — the single source for keys, kinds and field order; the
+ * harness adapter reads the same file (research D-14) and `docs/emoji-grammar.md` explains
+ * it. Parser obligations: `specs/001-cross-exam-evaluator/contracts/wire-grammar.md`.
  *
  * One message is one line: one emoji names the message kind — the tool, the measurement,
  * or the verdict — and its fields follow in fixed order, separated by `|`. The decode is
@@ -20,19 +20,31 @@ import type {
   ProposedAction,
   Verdict,
 } from '../model/case.ts';
+import registry from './registry.json' with { type: 'json' };
 
 export type DecodeResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
-const PROPOSAL_KEYS: ReadonlyMap<string, ActionName> = new Map([
-  ['\u{1F9FE}', 'bulk_refund'], // 🧾
-  ['\u{1F4B8}', 'issue_payout'], // 💸
-  ['\u{1F512}', 'close_account'], // 🔒
-]);
-const MEASUREMENT = '\u{1F9EE}'; // 🧮
-const VERDICT_KEYS: ReadonlyMap<string, EvaluatorVerdict['verdict']> = new Map([
-  ['\u{2705}', 'allow'], // ✅
-  ['\u{26D4}', 'deny'], // ⛔
-]);
+const ACTION_NAMES: readonly string[] = ['bulk_refund', 'issue_payout', 'close_account'];
+
+/** The shape of one `registry.json` entry; JSON imports widen literals, so it is named here. */
+type Entry =
+  | { kind: 'tool'; tool: string; fields: string[] }
+  | { kind: 'measurement'; fields: string[] }
+  | { kind: 'verdict'; verdict: EvaluatorVerdict['verdict']; fields: string[] };
+const entries = Object.entries(registry) as [string, Entry][];
+
+const PROPOSAL_KEYS: ReadonlyMap<string, ActionName> = new Map(
+  entries.flatMap(([key, e]) =>
+    e.kind === 'tool' && ACTION_NAMES.includes(e.tool) ? [[key, e.tool as ActionName]] : [],
+  ),
+);
+const MEASUREMENT = entries.find(([, e]) => e.kind === 'measurement')![0];
+const VERDICT_KEYS: ReadonlyMap<string, EvaluatorVerdict['verdict']> = new Map(
+  entries.flatMap(([key, e]) =>
+    e.kind === 'verdict' ? [[key, e.verdict]] : [],
+  ),
+);
+const arity = (key: string): number => registry[key as keyof typeof registry].fields.length;
 
 /** Models add the variation selector to some symbols; every decoder drops one leading one. */
 const VARIATION_SELECTOR = '️';
@@ -42,8 +54,8 @@ interface Line {
   fields: string[];
 }
 
-/** Obligations 1–2: exactly one non-blank line, an accepted key, `|`-split trimmed fields. */
-function parseLine(text: string, accepted: ReadonlySet<string>, arity: number): DecodeResult<Line> {
+/** Obligations 1–2: exactly one non-blank line, an accepted key, `|`-split trimmed fields at the key's arity. */
+function parseLine(text: string, accepted: ReadonlySet<string>): DecodeResult<Line> {
   const lines = text.split('\n').filter((line) => line.trim() !== '');
   if (lines.length !== 1) {
     return { ok: false, error: `expected one grammar line, got ${lines.length}` };
@@ -57,8 +69,8 @@ function parseLine(text: string, accepted: ReadonlySet<string>, arity: number): 
   let rest = line.slice(key.length);
   if (rest.startsWith(VARIATION_SELECTOR)) rest = rest.slice(1);
   const fields = rest.trim() === '' ? [] : rest.split('|').map((field) => field.trim());
-  if (fields.length !== arity) {
-    return { ok: false, error: `${key} expects ${arity} fields, got ${fields.length}` };
+  if (fields.length !== arity(key)) {
+    return { ok: false, error: `${key} expects ${arity(key)} fields, got ${fields.length}` };
   }
   return { ok: true, value: { key, fields } };
 }
@@ -98,7 +110,7 @@ function parseTriple(fields: readonly string[]): DecodeResult<MeasuredTriple> {
 
 /** The acting agent's proposal: `🧾`/`💸`/`🔒` then `criteria | declared_count | declared_value`. */
 export function decodeProposal(text: string): DecodeResult<ProposedAction> {
-  const parsed = parseLine(text, new Set(PROPOSAL_KEYS.keys()), 3);
+  const parsed = parseLine(text, new Set(PROPOSAL_KEYS.keys()));
   if (!parsed.ok) return parsed;
   const [criteria, rawCount, rawValue] = parsed.value.fields as [string, string, string];
   if (criteria === '') return { ok: false, error: 'empty criteria' };
@@ -118,7 +130,7 @@ export function decodeProposal(text: string): DecodeResult<ProposedAction> {
  * Evaluator (obligation 8, research D-06).
  */
 export function decodeVerdict(text: string): DecodeResult<EvaluatorVerdict> {
-  const parsed = parseLine(text, new Set(VERDICT_KEYS.keys()), 4);
+  const parsed = parseLine(text, new Set(VERDICT_KEYS.keys()));
   if (!parsed.ok) return parsed;
   const cited = parseTriple(parsed.value.fields);
   if (!cited.ok) return cited;
@@ -132,7 +144,7 @@ export function decodeVerdict(text: string): DecodeResult<EvaluatorVerdict> {
  * decoder; the Bench builds `observed` from the `measure` tool's `structuredContent`.
  */
 export function decodeMeasurement(text: string): DecodeResult<MeasuredTriple> {
-  const parsed = parseLine(text, new Set([MEASUREMENT]), 3);
+  const parsed = parseLine(text, new Set([MEASUREMENT]));
   if (!parsed.ok) return parsed;
   return parseTriple(parsed.value.fields);
 }

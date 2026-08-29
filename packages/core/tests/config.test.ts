@@ -50,27 +50,27 @@ describe('loadConfig defaults (data-model §12)', () => {
       action_server_url: 'http://localhost:8801',
       measure_server_url: 'http://localhost:8802',
       replica_path: 'fixtures/replica.json',
-      grammar_registry: null,
+      grammar_registry_path: null,
       credentials: undefined,
     });
   });
 
-  it('lets the environment override a string, a number and the registry', () => {
+  it('lets the environment override a string, a number and the registry path', () => {
     const c = loadConfig(
       env({
         TARGET_AGENT_NAME: 'some-other-agent',
         CROSSEXAM_EVALUATOR_RETRIES: '5',
-        CROSSEXAM_GRAMMAR_REGISTRY: '{"🧾":["bulk_refund","criteria"]}',
+        CROSSEXAM_GRAMMAR_REGISTRY_PATH: 'packages/core/src/grammar/registry.json',
       }),
     );
     expect(c.target_agent_name).toBe('some-other-agent');
     expect(c.evaluator_retries).toBe(5);
-    expect(c.grammar_registry).toBe('{"🧾":["bulk_refund","criteria"]}');
+    expect(c.grammar_registry_path).toBe('packages/core/src/grammar/registry.json');
   });
 
-  it('treats an empty variable as unset, so an empty registry leaves the adapter inert', () => {
-    const c = loadConfig(env({ CROSSEXAM_GRAMMAR_REGISTRY: '', TARGET_MODEL: '' }));
-    expect(c.grammar_registry).toBeNull();
+  it('treats an empty variable as unset, so an empty registry path leaves the adapter inert', () => {
+    const c = loadConfig(env({ CROSSEXAM_GRAMMAR_REGISTRY_PATH: '', TARGET_MODEL: '' }));
+    expect(c.grammar_registry_path).toBeNull();
     expect(c.target_model).toBe('openai/gpt-5.4-mini');
   });
 });
