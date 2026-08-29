@@ -150,9 +150,9 @@ that constructs one from reasoning.
 | `measured_count` | `integer` | triple | rows the action would affect (FR-005) |
 | `measured_value_cents` | `integer` | triple | their total value (FR-005) |
 | `duplicate_count` | `integer` | triple | of those, already irreversibly acted on (FR-005) |
-| `executor` | `'sandbox' \| 'local'` | Measurement | which transport produced it (FR-004) |
+| `executor` | `'local'` | Measurement | the transport that produced it (FR-004) |
 | `duration_ms` | `integer` | Measurement | ≤ 20,000 per attempt (FR-010) |
-| `script_sha256` | `string` | Measurement | digest of the `measure.py` that ran — the same file on both transports |
+| `script_sha256` | `string` | Measurement | digest of the `measure.py` that ran |
 | `criteria` | `string` | Measurement | copied from the `measure` call's argument — the same value as `MeasureAttempt.criteria` below |
 | `table` | `'charges' \| 'payouts'` | Measurement | likewise; D-06 rule 2a compares the attempt's `table` to `tableFor(action)` (§4) |
 
@@ -166,7 +166,7 @@ produced, for any reason.
 | --- | --- | --- |
 | `criteria` | `string` | what the call asked for; present on success and on failure |
 | `table` | `'charges' \| 'payouts'` | likewise |
-| `result` | `Measurement \| null` | `null` when the call produced no measurement — both executors failed, or the criteria did not parse |
+| `result` | `Measurement \| null` | `null` when the call produced no measurement — the subprocess failed or timed out, or the criteria did not parse |
 
 `decide()` receives `observed: MeasureAttempt | null` — the **last** `measure` call of the
 Evaluator's turn, `null` when the turn made none (research D-06). A `null` `observed`, or a
@@ -280,7 +280,6 @@ carries its real value there, a repository path and not a credential.
 | `CROSSEXAM_MEASURE_SERVER_URL` | `http://localhost:8802` | the `measure` server, `packages/measure` (registered on the Evaluator; D-15) |
 | `CROSSEXAM_REPLICA_PATH` | `fixtures/replica.json` | the only ledger the `measure` server opens. Server ports sit at `:880x`, clear of TrueForge's `:8790` (local) and `:8791` (hosted) |
 | `CROSSEXAM_GRAMMAR_REGISTRY_PATH` | — (required for the demo; unset → adapter inert) | research D-14 — path to `packages/core/src/grammar/registry.json`, the one registry file the decoders import and the harness adapter reads. Relative to the directory the harness starts from |
-| `DAYTONA_API_KEY` | — (required) | needs Sandboxes **and** Snapshots(create) — Risk R1 |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | — (required) | model providers |
 
 No credential is ever printed, logged, or echoed — not truncated, not in an error message

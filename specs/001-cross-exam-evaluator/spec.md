@@ -28,10 +28,12 @@ cancelled outright if the P1 loop has not closed by the 14:30 PDT cutline
 - Q: Where does the replica ledger's data come from — copied from the production ledger at hold time, or seeded separately? → A: Generated independently from its own seeded fixture (not a copy of production)
 - Q: Where do the declared figures (7 disputes, $840) come from — a required field on the proposal, or parsed from the agent's text? → A: Required field on the proposed action's arguments; missing declaration escalates
 - Q: What makes a measurement "inconclusive" and so an escalation? → A: No such branch — the only escalation triggers are no measurement produced and measured value over the configured threshold
-- Q: If the external sandbox is unreachable during the demo, fall back or escalate? → A: Local isolated executor behind the same interface; the sandbox stays the default
+- Q: If the external sandbox is unreachable during the demo, fall back or escalate? → A: Local isolated executor behind the same interface; the sandbox stays the default. **Superseded 2026-08-29** — the sandbox is cut; the local isolated executor is the only environment
 - Q: How long may a single measurement run before the Evaluator gives up on it? → A: 20 seconds per attempt
 
 ### Session 2026-08-29
+
+- Q: Is the external sandbox still the default environment now that the demo runs on one machine? → A: No — cut. The local isolated executor is the only environment; no sandbox provider account, no fallback chain. One executor, one 20-second budget
 
 - Q: One emoji per field, or one emoji per tool call? → A: One emoji per message kind — the tool being called, the measurement, or the verdict — with its fields following in fixed order, `|`-separated, on one line. Seven keys: `🧾` `💸` `🔒` `📏` `🧮` `✅` `⛔`. No generic "action" key, no field keys. `escalate` has no key: it never crosses the wire
 
@@ -204,7 +206,7 @@ earlier verdict is retrievable.
 
 ### Edge Cases
 
-- **The measurement cannot run** (neither the sandbox nor the local executor can run it,
+- **The measurement cannot run** (the local executor cannot run it,
   replica not loaded, execution errors): the verdict is `escalate`. No inferred `allow` or `deny`, at any point in the
   day, for any reason.
 - **The agent re-proposes something still dangerous**: it is measured and denied again on
@@ -242,11 +244,12 @@ earlier verdict is retrievable.
 **Measuring the blast radius**
 
 - **FR-004**: The system MUST execute the held action's exact proposed selection criteria
-  against a replica of the production ledger, in an isolated environment, without touching
-  production data. The external sandbox is the default environment; when it is
-  unreachable, the system MUST run the identical measurement through a local isolated
-  executor behind the same interface. FR-010 applies only when neither executor produces
-  a measurement.
+  against a replica of the production ledger, in a local subprocess that is handed only
+  the replica: the production ledger's path never reaches it, so it cannot touch production
+  data by construction, not by a runtime check. The subprocess runs with a cleared
+  environment in a fresh temporary directory, and the script it runs is pinned by digest.
+  No OS-level network sandbox is claimed. FR-010 applies when the subprocess produces no
+  measurement.
 - **FR-005**: The measurement MUST report, at minimum: the number of records the action
   would affect, their total monetary value, and how many of them have already been acted
   on in a way that cannot be reversed.
@@ -268,8 +271,7 @@ earlier verdict is retrievable.
 - **FR-010**: When a measurement was attempted on the proposal's exact criteria and none was
   produced — for any reason, including infrastructure failure — or the case's wall-clock
   budget runs out before one is produced, the verdict MUST be `escalate`. A measurement attempt that has not returned
-  within 20 seconds MUST be abandoned and counts as producing no measurement; the fallback
-  executor of FR-004 is then attempted under the same 20-second limit.
+  within 20 seconds MUST be abandoned and counts as producing no measurement.
 - **FR-011**: When the measured value at stake exceeds the configured escalation
   threshold, the verdict MUST be `escalate` even though the measurement succeeded.
   Escalation is a **data** condition: no measurable proposal (FR-025), no measurement
@@ -437,12 +439,9 @@ These are decisions taken from [docs/research-findings.md](../../docs/research-f
 ## Dependencies
 
 - **The agent harness** provides the session, the pause for approval, the delivery of a
-  denial reason back to the agent, concurrent sub-investigations, sandboxed code
-  execution, and the rendered verdict card. Where it provides a behavior natively, that
+  denial reason back to the agent, concurrent sub-investigations, and the rendered
+  verdict card. Where it provides a behavior natively, that
   behavior is used rather than rebuilt (Constitution III).
-- **An external sandbox provider account** with permission to create snapshots, funded and
-  verified before the event. It is verified the night before, not on the day; its loss
-  during the run is covered by the local executor of FR-004 rather than ending the demo.
 - **A model provider account** for both agents.
 - **An automated pull-request review** on every merged pull request, live from the first
   commit.

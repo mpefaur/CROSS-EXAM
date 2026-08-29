@@ -125,14 +125,14 @@ export function decide(
   }
 
   // Rule 2b, measurement half — the call was the right one and still produced nothing:
-  // both executors failed or exceeded their budget (FR-004, FR-010).
+  // the subprocess failed or exceeded its budget (FR-004, FR-010).
   const result = observed.result;
   if (result === null) {
     return {
       verdict: 'escalate',
       reason:
         `The measurement of \`${proposal.value.criteria}\` on \`${table}\` produced no result — ` +
-        `both executors failed or timed out. No execution means no verdict.`,
+        `the measurement failed or timed out. No execution means no verdict.`,
       evidence: null,
       rule: '2b',
     };

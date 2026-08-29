@@ -1,4 +1,4 @@
-![](https://img.shields.io/badge/TypeScript-informational?style=flat&logo=typescript&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/Node.js_22-informational?style=flat&logo=nodedotjs&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/pnpm-informational?style=flat&logo=pnpm&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/TrueForge-informational?style=flat&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/MCP-informational?style=flat&logo=modelcontextprotocol&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/Daytona-informational?style=flat&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/Python_3-informational?style=flat&logo=python&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/Zod-informational?style=flat&logo=zod&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/Vitest-informational?style=flat&logo=vitest&logoColor=white&color=6aa6f8)
+![](https://img.shields.io/badge/TypeScript-informational?style=flat&logo=typescript&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/Node.js_22-informational?style=flat&logo=nodedotjs&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/pnpm-informational?style=flat&logo=pnpm&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/TrueForge-informational?style=flat&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/MCP-informational?style=flat&logo=modelcontextprotocol&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/Python_3-informational?style=flat&logo=python&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/Zod-informational?style=flat&logo=zod&logoColor=white&color=6aa6f8) ![](https://img.shields.io/badge/Vitest-informational?style=flat&logo=vitest&logoColor=white&color=6aa6f8)
 
 # CROSS-EXAM
 
@@ -82,7 +82,7 @@ does the action run against production.
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. Propose   | The agent calls an irreversible MCP tool (`bulk_refund`, `issue_payout`, `close_account`). All three are `destructive: true` under `require_approval_for_tools: ["@all"]`, so the call pauses for approval. |
 | 2. Intercept | The Bench takes the pause instead of a human. `tool.approval_required` carries only an event id, so it walks back to the preceding `model.message` to recover the tool name and arguments.                  |
-| 3. Measure   | `measure.py` runs the proposed criteria against the replica ledger, in a Daytona sandbox by default and locally if the sandbox is unreachable. This is the only component allowed to produce a number.      |
+| 3. Measure   | `measure.py` runs the proposed criteria against the replica ledger in a local isolated executor. This is the only component allowed to produce a number.                                                  |
 | 4. Decide    | `decide()` applies five ordered rules and returns `allow`, `deny`, or `escalate`.                                                                                                                           |
 | 5. Correct   | On a denial, the agent reads the measured figures and re-proposes. The correction comes from the evidence rather than from a scripted second turn.                                                          |
 | 6. Execute   | On `allow`, the action is applied to the production ledger.                                                                                                                                                 |
@@ -100,7 +100,7 @@ Four situations reach that escalation: the proposal did not parse, no measuremen
 produced, the agent declared no figures, or the measured value crossed the configured
 threshold. The plan enforces this with types rather than convention: `Verdict.evidence`
 is non-null unless the verdict is `escalate`, and a `Measurement` can only be constructed
-by a `MeasurementExecutor` ([data-model.md](specs/001-cross-exam-evaluator/data-model.md)
+by `measure()` ([data-model.md](specs/001-cross-exam-evaluator/data-model.md)
 §9, [constitution](.specify/memory/constitution.md) II).
 
 ### Refunds are the demo, not the scope
@@ -113,7 +113,7 @@ crossing the configured threshold, not against a refund at all.
 | Layer                                                                   | Tied to refunds?                                                                                             |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `decide()`, the five rules                                              | No. It compares a declared figure to a measured one and applies a threshold                                  |
-| The wire format, the executor interface, the sandbox and local fallback | No                                                                                                           |
+| The wire format and the executor interface                              | No                                                                                                           |
 | `measure.py`                                                            | Partly. It counts over two tables (`charges`, `payouts`) with an AND-only predicate over seven named columns |
 | The replica dataset                                                     | Yes. It is a payments ledger                                                                                 |
 
@@ -151,9 +151,8 @@ What each piece actually does here:
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **[TrueForge](https://github.com/truefoundry/trueforge)** (TrueFoundry) | The agent harness. Runs both agents, pauses every destructive tool call for approval, streams the events the Bench reads, and renders the verdict card |
 | **[MCP](https://modelcontextprotocol.io)** (Model Context Protocol)     | How the irreversible actions are exposed. A streamable-HTTP server publishes `bulk_refund`, `issue_payout` and `close_account`, all marked destructive |
-| **[Daytona](https://www.daytona.io)**                                   | The sandbox the measurement runs in, so the proposed action is executed away from anything real. Falls back to a local isolated run when unreachable   |
 | **TypeScript 5.9.3** on **Node 22.14+**                                 | Everything except the measurement. ESM only, `tsc --noEmit` as the build                                                                               |
-| **Python 3**, stdlib only                                               | `measure.py`, the one script allowed to produce a number. No dependencies by design, so there is nothing to install in the sandbox                     |
+| **Python 3**, stdlib only                                               | `measure.py`, the one script allowed to produce a number. No dependencies by design, so there is nothing to install on venue wifi                      |
 | **pnpm 9** workspace                                                    | Three packages: `core`, `mcp`, `bench`                                                                                                                 |
 | **[Zod](https://zod.dev)**                                              | Tool argument schemas at the MCP boundary                                                                                                              |
 | **[Vitest](https://vitest.dev)**                                        | The three unit suites. The seeded end-to-end scenario is the primary test                                                                              |
@@ -206,7 +205,7 @@ packages/mcp/        Streamable-HTTP MCP server of irreversible actions
 packages/core/
   ├── grammar/       The emoji wire format, the contract between the two agents
   ├── ledger/        RNG-free seeded generator: production and replica, independent seeds
-  ├── measure/       MeasurementExecutor: Daytona sandbox → local fallback → null
+  ├── measure/       measure(): spawn measure.py → Measurement | null
   ├── verdict/       decide(), five ordered rules, the only place a verdict is made
   └── scripts/       measure.py, Python 3 stdlib only, the one measurement script
 fixtures/            Generated, committed ledgers: 1,500 charges, 342 payouts
@@ -259,7 +258,6 @@ demo underneath us:
 | pnpm 9                                             | `pnpm -v`                              |
 | Python 3                                           | `python3 --version`                    |
 | TrueForge on `:8790`                               | `npx @truefoundry/trueforge@0.1.4`     |
-| Daytona key with **Sandboxes + Snapshots(create)** | configured in the harness UI           |
 | Model provider key                                 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` |
 
 
@@ -282,7 +280,7 @@ may appear in the repository, in the demo output, or in the logs.
 [quickstart.md](specs/001-cross-exam-evaluator/quickstart.md) carries five runnable
 scenarios with the output you must read before calling anything done: the denial loop, the
 determinism check, the guardrail contrast, the four escalation paths
-(`--scenario unparseable | missing-declared | no-sandbox | over-threshold`), and the
+(`--scenario unparseable | missing-declared | no-executor | over-threshold`), and the
 verdict card.
 
 ---
