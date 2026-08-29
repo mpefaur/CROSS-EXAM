@@ -14,6 +14,9 @@ importers:
       '@eslint/js':
         specifier: 10.0.1
         version: 10.0.1(eslint@10.9.1)
+      '@truefoundry/trueforge':
+        specifier: 0.1.4
+        version: 0.1.4(patch_hash=252c59e66d7d365339c6ad3b2c7ee236a78cba0f5e48625a2dec626240cd0dbd)(@aws-sdk/credential-provider-node@3.972.81)(@opentelemetry/api@1.9.1)(@smithy/signature-v4@5.7.3)(undici@7.29.0)
       eslint:
         specifier: 10.9.1
         version: 10.9.1
@@ -2463,9 +2466,6 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.4.3:
-    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
-
   zod@4.5.2:
     resolution: {integrity: sha512-XkYXCol10+ba/6F/cueWV+TezUeOqXW0hdeJt5CdXjTYeAgAQg5N03RQdJ80mhfFE72+pblvYMW4wy2Qp4Qbrg==}
 
@@ -2533,11 +2533,6 @@ snapshots:
       commander: 12.1.0
       node-forge: 1.4.0
       zod: 3.25.76
-
-  '@asteasolutions/zod-to-openapi@9.1.0(zod@4.4.3)':
-    dependencies:
-      openapi3-ts: 4.6.1
-      zod: 4.4.3
 
   '@asteasolutions/zod-to-openapi@9.1.0(zod@4.5.2)':
     dependencies:
@@ -2915,14 +2910,6 @@ snapshots:
     dependencies:
       hono: 4.13.5
 
-  '@hono/zod-openapi@1.6.1(hono@4.13.5)(zod@4.4.3)':
-    dependencies:
-      '@asteasolutions/zod-to-openapi': 9.1.0(zod@4.4.3)
-      '@hono/zod-validator': 0.9.0(hono@4.13.5)(zod@4.4.3)
-      hono: 4.13.5
-      openapi3-ts: 4.6.1
-      zod: 4.4.3
-
   '@hono/zod-openapi@1.6.1(hono@4.13.5)(zod@4.5.2)':
     dependencies:
       '@asteasolutions/zod-to-openapi': 9.1.0(zod@4.5.2)
@@ -2930,11 +2917,6 @@ snapshots:
       hono: 4.13.5
       openapi3-ts: 4.6.1
       zod: 4.5.2
-
-  '@hono/zod-validator@0.9.0(hono@4.13.5)(zod@4.4.3)':
-    dependencies:
-      hono: 4.13.5
-      zod: 4.4.3
 
   '@hono/zod-validator@0.9.0(hono@4.13.5)(zod@4.5.2)':
     dependencies:
@@ -2966,28 +2948,6 @@ snapshots:
   '@jridgewell/sourcemap-codec@1.6.0': {}
 
   '@js-sdsl/ordered-map@4.4.2': {}
-
-  '@modelcontextprotocol/sdk@1.30.0(zod@4.4.3)':
-    dependencies:
-      '@hono/node-server': 2.1.1(hono@4.13.5)
-      ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
-      content-type: 1.0.5
-      cors: 2.8.6
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      eventsource-parser: 3.1.1
-      express: 5.2.1
-      express-rate-limit: 8.6.2(express@5.2.1)
-      hono: 4.13.5
-      jose: 6.2.10
-      json-schema-typed: 8.0.2
-      pkce-challenge: 5.0.1
-      raw-body: 3.0.2
-      zod: 4.4.3
-      zod-to-json-schema: 3.25.2(zod@4.4.3)
-    transitivePeerDependencies:
-      - supports-color
 
   '@modelcontextprotocol/sdk@1.30.0(zod@4.5.2)':
     dependencies:
@@ -3448,8 +3408,8 @@ snapshots:
       '@daytona/sdk': 0.204.1
       '@hono/node-server': 2.1.1(hono@4.13.5)
       '@hono/swagger-ui': 0.2.2(hono@4.13.5)
-      '@hono/zod-openapi': 1.6.1(hono@4.13.5)(zod@4.4.3)
-      '@modelcontextprotocol/sdk': 1.30.0(zod@4.4.3)
+      '@hono/zod-openapi': 1.6.1(hono@4.13.5)(zod@4.5.2)
+      '@modelcontextprotocol/sdk': 1.30.0(zod@4.5.2)
       '@truefoundry/trueforge-core': 0.1.4(@aws-sdk/credential-provider-node@3.972.81)(@smithy/signature-v4@5.7.3)(hono@4.13.5)(redis@5.12.1(@opentelemetry/api@1.9.1))(undici@7.29.0)
       better-sqlite3: 13.0.3
       env-paths: 4.0.0
@@ -3462,7 +3422,7 @@ snapshots:
       ulid: 3.0.2
       winston: 3.19.0
       yaml: 2.9.0
-      zod: 4.4.3
+      zod: 4.5.2
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@cfworker/json-schema'
@@ -4920,16 +4880,10 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod-to-json-schema@3.25.2(zod@4.4.3):
-    dependencies:
-      zod: 4.4.3
-
   zod-to-json-schema@3.25.2(zod@4.5.2):
     dependencies:
       zod: 4.5.2
 
   zod@3.25.76: {}
-
-  zod@4.4.3: {}
 
   zod@4.5.2: {}
