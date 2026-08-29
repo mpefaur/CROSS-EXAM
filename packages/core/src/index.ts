@@ -1,1 +1,1 @@
-export {};
+export * from './model/entities.ts';
