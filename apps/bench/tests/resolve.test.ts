@@ -427,4 +427,21 @@ describe('resolveCase', () => {
     expect(bench.sent).toHaveLength(1);
     expect(bench.sent[0]?.input[0]).toMatchObject({ approval: { status: 'allow' } });
   });
+
+  it('reports the standing decision when an escalate arrives after it', async () => {
+    const bench = fakeBench([]);
+    const first = await resolveCase(
+      bench,
+      held,
+      verdictTurn('✅1240 | 96310.00 | 0 | figures match'),
+    );
+    const late = await resolveCase(
+      bench,
+      held,
+      verdictTurn('⛔0 | 0.00 | 0 | nothing measured', { error: 'measure.py exit 3' }),
+    );
+
+    expect(late).toBe(first);
+    expect(bench.sent).toHaveLength(1);
+  });
 });
