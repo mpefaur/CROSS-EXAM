@@ -1,5 +1,5 @@
-"""The one measurement script. Both executors (Daytona sandbox, local python3) run this
-exact file; Measurement.script_sha256 records which bytes ran.
+"""The one measurement script. The local executor runs this exact file;
+Measurement.script_sha256 records which bytes ran.
 
     python3 measure.py --ledger <path.json> --table <charges|payouts> --criteria '<expr>'
 

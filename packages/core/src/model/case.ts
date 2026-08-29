@@ -85,11 +85,11 @@ export interface MeasuredTriple {
  * (Constitution II).
  */
 export interface Measurement extends MeasuredTriple {
-  /** Which transport produced it (FR-004). */
-  executor: 'sandbox' | 'local';
+  /** The transport that produced it (FR-004). */
+  executor: 'local';
   /** <= CROSSEXAM_MEASUREMENT_TIMEOUT_MS per attempt (FR-010). */
   duration_ms: number;
-  /** Digest of the `measure.py` that ran — the same file on both transports. */
+  /** Digest of the `measure.py` that ran. */
   script_sha256: string;
   /** Copied from the `measure` call's argument. */
   criteria: string;
@@ -98,7 +98,7 @@ export interface Measurement extends MeasuredTriple {
 
 /**
  * data-model §8 — one `measure` call as the Bench sees it. `result` is `null` when the
- * call produced no measurement: both executors failed, or the criteria did not parse.
+ * call produced no measurement: the subprocess failed, or the criteria did not parse.
  */
 export interface MeasureAttempt {
   criteria: string;

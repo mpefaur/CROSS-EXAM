@@ -1,13 +1,12 @@
 # Contract: measurement executor
 
-The only interface in this system that may produce a `Measurement`. Both transports run
-**byte-identical code** — the same `measure.py` — which is what lets FR-004's "identical
-measurement ... behind the same interface" be a fact rather than a claim (research D-03).
+The only interface in this system that may produce a `Measurement`. One transport, one
+script — `measure.py` — run by the local executor (research D-03).
 
 ## The script
 
-`packages/core/scripts/measure.py` — Python 3, **standard library only** (no `pip install`
-inside a sandbox on venue wifi).
+`packages/core/scripts/measure.py` — Python 3, **standard library only** (nothing to install on
+venue wifi).
 
 ```
 python3 measure.py --ledger <path.json> --table <charges|payouts> --criteria '<expr>'
@@ -35,27 +34,35 @@ never inferred.
 The script never writes, never opens a socket, and never reads a path outside the one it
 was given.
 
-## The TypeScript interface
+## The TypeScript function
+
+One function, no interface — there is one transport (Constitution VIII; the sandbox was cut
+on 2026-08-29, spec Clarifications, Session 2026-08-29):
 
 ```ts
-interface MeasurementExecutor {
-  readonly kind: 'sandbox' | 'local';
-  run(input: {
-    ledgerPath: string;
-    table: 'charges' | 'payouts';
-    criteria: string;
-    signal: AbortSignal;   // fires at CROSSEXAM_MEASUREMENT_TIMEOUT_MS
-  }): Promise<Measurement | null>;   // null = no measurement produced
-}
+function measure(input: {
+  ledgerPath: string;              // CROSSEXAM_REPLICA_PATH — the only path the server holds
+  table: 'charges' | 'payouts';
+  criteria: string;
+  signal: AbortSignal;             // fires at CROSSEXAM_MEASUREMENT_TIMEOUT_MS
+}): Promise<Measurement | null>;   // null = no measurement produced
 ```
 
-Two implementations, one behind each transport:
+### What isolates it (FR-004)
 
-- **`SandboxExecutor` (default)** — uploads `measure.py` and the replica ledger into the
-  Daytona sandbox, runs it, reads stdout. The sandbox persists across turns of a session,
-  so the upload happens once per run.
-- **`LocalExecutor` (fallback)** — runs the same file with `python3` in a temporary working
-  directory, no network. Used **only** when the sandbox is unreachable (FR-004).
+Isolation from production is **by construction**: the `measure` server is configured with
+`CROSSEXAM_REPLICA_PATH` only, so the production ledger's path does not exist in the process
+that spawns the script. The subprocess itself is spawned as:
+
+| Control | How | Checked by |
+| --- | --- | --- |
+| No host environment | `env` is `{ PATH }` only — no `PYTHON*`, no credentials | T015 unit test asserts the spawn options |
+| No user site / env hooks | `python3 -I` (isolated mode) | same |
+| Fresh working directory | `cwd` is a new `mkdtemp` directory, removed after the run | same |
+| Only the replica | the ledger path is the argument; the script opens nothing else and never writes | script by inspection; `script_sha256` pins the bytes that ran |
+| No network | the script opens no socket; **no OS-level network sandbox is enforced** | `script_sha256` — a changed script is a changed digest |
+
+That is the whole claim. The word "sandbox" is not used for this executor.
 
 ## The tool the Evaluator calls
 
@@ -68,7 +75,7 @@ below. It opens only `CROSSEXAM_REPLICA_PATH` and listens on `CROSSEXAM_MEASURE_
 | Outcome | `isError` | text content | `structuredContent` |
 | --- | --- | --- | --- |
 | measurement produced | `false` | the script's `🧮` line, verbatim — what the Evaluator reads and cites | the full `Measurement` (data-model §8): `{ criteria, table, measured_count, measured_value_cents, duplicate_count, executor, duration_ms, script_sha256 }` |
-| no measurement — exit `2`, exit `3`, or both executors failed / timed out | `true` | one reason line: `criteria did not parse: <detail>` · `ledger malformed: <detail>` · `both executors failed within 20 s` | `{ criteria, table, executor: null }` |
+| no measurement — exit `2`, exit `3`, or the executor failed / timed out | `true` | one reason line: `criteria did not parse: <detail>` · `ledger malformed: <detail>` · `executor failed within 20 s` | `{ criteria, table, executor: null }` |
 
 `criteria` and `table` are always present, copied from the call's own arguments, so the Bench
 can tell a failed call on the proposal's criteria (D-06 rule 2b) from a call on other criteria
@@ -78,19 +85,14 @@ never parses grammar text and never runs the executors itself (research D-06).
 
 ## Resolution order and the 20-second budget
 
-1. Try `SandboxExecutor` with a fresh 20,000 ms `AbortSignal`.
-2. If it returns `null` — failure, or the signal fired — try `LocalExecutor` with its **own**
-   fresh 20,000 ms signal (FR-010: "the fallback executor is then attempted under the same
-   20-second limit").
-3. If that also returns `null`, the tool returns the failure row above; when the call was on
-   the proposal's criteria the verdict is `escalate` under rule 2b. There is no third attempt
-   and no retry loop.
+1. Spawn the script with a fresh 20,000 ms `AbortSignal`.
+2. If it returns `null` — failure, or the signal fired — the tool returns the failure row
+   above; when the call was on the proposal's criteria the verdict is `escalate` under rule
+   2b. There is no second attempt and no retry loop.
 
-Worst case a single case spends 40 s across both attempts; **no single attempt exceeds
-20 s** (SC-011).
+**No attempt exceeds 20 s** (SC-011).
 
 ## Invariant
 
 `Measurement.script_sha256` is the digest of the `measure.py` that actually ran, recorded on
-every measurement. If the sandbox copy and the local copy ever diverge, the digests differ
-and the run says so instead of quietly comparing two different pieces of arithmetic.
+every measurement, so a verdict names the exact script that produced its figures.
