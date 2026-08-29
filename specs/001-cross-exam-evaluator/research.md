@@ -42,7 +42,7 @@ runner and its script, and the verdict rules. Everything else is harness behavio
 
 ### D-01 — Runtime, package manager, and workspace shape
 
-**Decision**: Node 22.14+ (developed on 24.20.0), pnpm 9, TypeScript 5.9.3, ESM only.
+**Decision**: Node 22.14+ (developed on 24.20.0), pnpm 11.4.0 (exact pin — the installed version on the build machine; the original `pnpm 9` pin was amended at T001), TypeScript 5.9.3, ESM only.
 Three workspace packages: `packages/core`, `packages/mcp`, `apps/bench`. Packages export
 **TypeScript source directly** (`"exports": "./src/index.ts"`) and everything runs through
 `tsx`; `pnpm build` is a workspace-wide `tsc --noEmit` typecheck, not an emit step.

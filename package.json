@@ -1,0 +1,23 @@
+{
+  "name": "cross-exam",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.4.0",
+  "engines": {
+    "node": ">=22.14"
+  },
+  "scripts": {
+    "demo": "pnpm --filter @crossexam/bench run demo",
+    "seed": "pnpm --filter @crossexam/core run seed",
+    "test": "pnpm -r run test",
+    "lint": "eslint .",
+    "build": "pnpm -r run typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.9.1",
+    "globals": "17.11.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.68.0"
+  }
+}

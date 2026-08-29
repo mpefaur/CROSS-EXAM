@@ -14,7 +14,7 @@ detail lives in `tasks.md` and the code. Every command below is one you actually
 | Requirement | Check | Why |
 | --- | --- | --- |
 | Node ≥ 22.14 | `node -v` | harness requirement |
-| pnpm 9 | `pnpm -v` | `AGENTS.md §1` |
+| pnpm 11.4.0 | `pnpm -v` | `AGENTS.md §1` |
 | Python 3 | `python3 --version` | the measurement script ([contract](./contracts/measurement-executor.md)) |
 | TrueForge on `:8790` | `npx @truefoundry/trueforge@0.1.4` | local mode, SQLite |
 | Daytona key with **Sandboxes + Snapshots(create)** | provider configured in the harness UI | Risk R1 — without Snapshots the provider fails to configure even with a valid key |

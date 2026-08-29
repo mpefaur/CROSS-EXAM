@@ -1,0 +1,14 @@
+packages:
+  - packages/*
+  - apps/*
+
+# pnpm 11 skips postinstall scripts unless allowed. tsx/vitest need esbuild's
+# binary; @truefoundry/trueforge needs better-sqlite3.
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+  protobufjs: true
+
+# pnpm 11's minimumReleaseAge would hold back this exact pin from research D-02.
+minimumReleaseAgeExclude:
+  - zod@4.5.2
