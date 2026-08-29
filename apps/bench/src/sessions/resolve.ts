@@ -225,8 +225,9 @@ async function runTurn(
 
 /**
  * Answer the held approval, once. `allow` and `deny` resolve it; `escalate` leaves it
- * pending — there is no auto-approving timeout, ever (data-model §10). A decision on a case
- * already decided is rejected and the standing verdict returned.
+ * pending and the case undecided — a human answers it later, and there is no
+ * auto-approving timeout, ever (data-model §10). A decision on a case already decided is
+ * rejected and the standing verdict returned.
  *
  * The case is recorded before the turn is sent, so a race cannot deliver two decisions. A
  * failure is then read by phase: refused before the harness took it, the record is released
@@ -234,9 +235,9 @@ async function runTurn(
  * after that leaves the record standing, because the decision may already have run.
  */
 async function applyVerdict(bench: Bench, held: HeldAction, verdict: Verdict): Promise<Verdict> {
+  if (verdict.verdict === 'escalate') return verdict;
   const standing = bench.cases.decide(held.case_id, verdict);
   if (standing !== null) return standing;
-  if (verdict.verdict === 'escalate') return verdict;
 
   const approval: TrueForgeApi.ApprovalDecision =
     verdict.verdict === 'allow' ? { status: 'allow' } : { status: 'deny', reason: verdict.reason };

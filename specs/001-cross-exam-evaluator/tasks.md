@@ -162,7 +162,7 @@ Scenario 4 each return `⚖ escalate`, none emits `allow` or `deny`, and no atte
 > phase makes them reachable and observable.
 
 - [ ] T033 [US3] Add scenario selection in `apps/bench/src/scenarios.ts` and the `--scenario` flag in `apps/bench/src/demo.ts` for `unparseable`, `missing-declared`, `no-executor`, and `over-threshold`, each forcing exactly one failure mode without altering the production code path
-- [ ] T034 [US3] Confirm and, where needed, complete the escalate path in `apps/bench/src/sessions/resolve.ts`: the approval stays pending, the case is presented with its evidence, the action stays unexecuted, and there is no timeout that auto-approves — ever (FR-013, FR-014, spec § Edge Cases)
+- [x] T034 [US3] Confirm and, where needed, complete the escalate path in `apps/bench/src/sessions/resolve.ts`: the approval stays pending, the case is presented with its evidence, the action stays unexecuted, and there is no timeout that auto-approves — ever (FR-013, FR-014, spec § Edge Cases)
 - [ ] T035 [US3] Wire the `over-threshold` scenario in `apps/bench/src/scenarios.ts` to propose `issue_payout` against the `payouts` table, whose $418,220.00 measurement crosses `CROSSEXAM_ESCALATION_THRESHOLD_USD=250000` and returns `escalate` under rule 3 with its measured figures cited (FR-011, [D-07](./research.md))
 - [ ] T036 [US3] Run all four scenario flags of [quickstart.md](./quickstart.md) Scenario 4 and paste the output: four `⚖ escalate`, zero `allow`/`deny`, action unexecuted in each, and no measurement attempt over 20 s in the `no-executor` run (SC-004, SC-011)
 

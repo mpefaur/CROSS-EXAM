@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TrueForge, TrueForgeApi } from '@truefoundry/trueforge-sdk';
-import type { Config, DecodeResult, Measurement, ProposedAction } from '@crossexam/core';
+import type { Config, DecodeResult, Measurement, ProposedAction, Verdict } from '@crossexam/core';
 
 import { EventIndex, type TurnRecord } from '../src/sessions/stream.ts';
 import { TurnQueue } from '../src/sessions/queue.ts';
@@ -319,7 +319,22 @@ describe('resolveCase', () => {
 
     expect(verdict.verdict).toBe('escalate');
     expect(verdict.rule).toBe('3');
+    expect(verdict.evidence).toEqual(overThreshold);
     expect(bench.sent).toEqual([]);
+  });
+
+  it('leaves an escalated case answerable: a later human decision is not a second one', async () => {
+    const bench = fakeBench([]);
+    const escalated = await resolveCase(
+      bench,
+      held,
+      verdictTurn('⛔0 | 0.00 | 0 | nothing measured', { error: 'measure.py exit 3' }),
+    );
+    expect(escalated.verdict).toBe('escalate');
+    expect(escalated.rule).toBe('2b');
+
+    const human: Verdict = { ...escalated, verdict: 'allow', evidence: measured };
+    expect(bench.cases.decide(held.case_id, human)).toBeNull();
   });
 
   it('sends the guidance as the Evaluator next turn and resolves the re-issued verdict', async () => {
