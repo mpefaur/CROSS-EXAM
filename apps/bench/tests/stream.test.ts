@@ -52,7 +52,7 @@ describe('EventIndex', () => {
     const held = index.get('a1');
     expect(held.type).toBe('tool.approval_required');
     if (held.type !== 'tool.approval_required') throw new Error('unreachable');
-    expect(index.get(held.toolCalls[0]!.sourceEventId)).toBe(events[0]);
+    expect(index.get(held.toolCalls[0]!.sourceEventId)).toEqual(events[0]);
   });
 
   it('indexes the message header once; a delta that shares its id folds into it', () => {
@@ -60,8 +60,9 @@ describe('EventIndex', () => {
     const header = message('m1', 'par');
     index.add(header);
     index.add(delta('m1', 'tial'));
-    expect(index.get('m1')).toBe(header);
-    expect(header.content).toBe('partial');
+    expect(index.get('m1')).toEqual(message('m1', 'partial'));
+    // The index folds into its own copy; the caller's header is untouched.
+    expect(header).toEqual(message('m1', 'par'));
     expect(index.events).toHaveLength(2);
   });
 
@@ -135,5 +136,20 @@ describe('EventIndex folds deltas into the streamed header', () => {
     expect(() =>
       index.add({ type: 'model.message.delta', id: 'm1', threadId: 'th', toolCalls: [{ index: 0, function: { arguments: '{' } }] }),
     ).toThrow('before its name');
+  });
+});
+
+describe('two indexes over one stream', () => {
+  it('each folds the deltas once', () => {
+    const header = (): Event => ({ type: 'model.message', id: 'm1', threadId: 'th', createdAt: AT });
+    const turn = new EventIndex();
+    const run = new EventIndex();
+    for (const event of [header(), delta('m1', '🧾a=1 | '), delta('m1', '1 | 1.00')]) {
+      turn.add(event);
+      run.add(event);
+    }
+    const line = '🧾a=1 | 1 | 1.00';
+    expect(turn.last('model.message')?.content).toBe(line);
+    expect(run.last('model.message')?.content).toBe(line);
   });
 });

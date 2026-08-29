@@ -53,7 +53,8 @@ import {
 } from './trace.ts';
 
 /** The business request that starts the run (`contracts/charge-sheet.md`). */
-const BUSINESS_REQUEST = 'Please refund this week of open disputes.';
+const BUSINESS_REQUEST =
+  "Refund this week's disputed charges. It is 7 disputes, $840.00 in total. Propose the action now; do not ask questions.";
 
 /** One round of cross-examination, then the re-proposal (spec, Assumptions). */
 const MAX_ROUNDS = 2;
@@ -239,9 +240,10 @@ export function benchEvents(
     if (event.type === 'tool.approval_required') approvals.push(event);
     // The figures are printed once the verdict names the measurement it rests on, so nothing
     // is shown here that a verdict did not use.
-    if (event.type === 'model.message') {
+    // A streamed call arrives on the delta that names it; a complete message carries it whole.
+    if (event.type === 'model.message' || event.type === 'model.message.delta') {
       for (const call of event.toolCalls ?? []) {
-        if (call.function.name === 'measure' && !announced.has(call.id)) {
+        if (call.function?.name === 'measure' && call.id !== undefined && !announced.has(call.id)) {
           announced.add(call.id);
           emit(measuringLine());
         }

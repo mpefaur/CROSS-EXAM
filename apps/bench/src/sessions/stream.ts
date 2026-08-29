@@ -44,10 +44,15 @@ export class EventIndex {
   private readonly byId = new Map<string, TurnStreamingEvent>();
 
   add(event: TurnStreamingEvent): void {
-    this.events.push(event);
     // The streamed `model.message` is a bare header; its text and tool calls arrive as deltas.
-    if (event.type === 'model.message.delta') fold(this.message(event.id), event);
-    else this.byId.set(event.id, event);
+    // The header is copied so each index over one stream folds into its own message.
+    const own = event.type === 'model.message' ? { ...event } : event;
+    if (own.type === 'model.message' && own.toolCalls) {
+      own.toolCalls = own.toolCalls.map((call) => ({ ...call, function: { ...call.function } }));
+    }
+    this.events.push(own);
+    if (own.type === 'model.message.delta') fold(this.message(own.id), own);
+    else this.byId.set(own.id, own);
   }
 
   private message(id: string): TrueForgeApi.ModelMessageEvent {
