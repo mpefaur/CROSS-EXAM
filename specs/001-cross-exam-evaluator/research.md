@@ -154,7 +154,7 @@ it with zero setup.
 - *Hardcode the totals in the verdict*: this is precisely the Constitution II violation the
   whole project exists to refuse (Risk R4).
 
-### D-06 — The verdict is the Evaluator's; `decide()` guards its tool use and escalates only on data
+### D-06 — The verdict is the Evaluator's; `decide()` guards its tool use and escalates on data, or when guidance is exhausted
 
 **Decision**: The Evaluator — a model — measures by calling the `measure` tool (D-15) and
 then writes the verdict in the grammar. Code never approves and never denies. One pure
@@ -169,7 +169,8 @@ as the Bench read it from the tool-result event (`null` when no call produced a 
 its next turn, carrying what was wrong and the observed figures, after which the re-issued
 verdict goes through `decide()` again. The rules apply in this exact order.
 
-**Escalation is a data condition.** Only rules 1, 2b and 3 escalate. Everything else the
+**Escalation is a data condition.** Only rules 1, 2b and 3 escalate on a first failure; 2a, 4
+and 5 escalate only once `CROSSEXAM_EVALUATOR_RETRIES` is exhausted. Everything else the
 guardrail catches is the Evaluator's *tool usage*, and a model corrects its tool usage when
 told — so the Bench tells it. Two bounds, both in D-09 and data-model §12: guidance is
 issued at most `CROSSEXAM_EVALUATOR_RETRIES` (3) times per held action — the fourth failure
@@ -323,7 +324,8 @@ Assumptions.
 three things, because each is cheaper to check than a full scenario re-run:
 1. the grammar decoder (round-trip + every malformed-input rejection path),
 2. the ledger generator's cohort totals (1,204 / $96,310.00 / 611 / 7 / $840.00 / $418,220.00),
-3. `decide()`'s six rules, their ordering, and that only 1/2b/3 escalate.
+3. `decide()`'s six rules, their ordering, that only 1/2b/3 escalate on a first failure, and that
+   2a/4/5 escalate only when the retries are spent.
 
 Nothing else gets a unit test.
 

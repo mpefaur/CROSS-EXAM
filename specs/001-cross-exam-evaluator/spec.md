@@ -270,14 +270,15 @@ earlier verdict is retrievable.
   threshold, the verdict MUST be `escalate` even though the measurement succeeded.
   Escalation is a **data** condition: no measurable proposal (FR-025), no measurement
   produced (FR-010), or a value over the threshold (this requirement) — these are the only
-  three escalation triggers; there is no separate "inconclusive measurement" branch. A
+  three *data* triggers; there is no separate "inconclusive measurement" branch. The one
+  non-data trigger is exhausting the configured guidance retries below. A
   verdict the Evaluator writes incorrectly — malformed, written without measuring at all,
   measured on other criteria, citing figures it did not measure, or approving what its
   measurement contradicts — is a
   tool-usage mistake, not a data condition: the system MUST return it to the Evaluator with
   the measured figures as guidance and read the re-issued verdict, and MUST NOT execute on
-  it. Guidance is given up to three times per held action; a fourth incorrect verdict means
-  no valid verdict can be obtained and the action escalates.
+  it. Guidance is given a configured number of times per held action (default three); the
+  next incorrect verdict means no valid verdict can be obtained and the action escalates.
 - **FR-012**: A `deny` verdict MUST carry a reason containing the measured figures, and
   that reason MUST be delivered to the acting agent.
 - **FR-013**: An `escalate` verdict MUST present the case, with its evidence, to a human

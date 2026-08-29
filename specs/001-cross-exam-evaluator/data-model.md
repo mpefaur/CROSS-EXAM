@@ -179,7 +179,7 @@ turn; the re-issued verdict goes through `decide()` again (research D-06). At mo
 | Field | Type | Notes |
 | --- | --- | --- |
 | `verdict` | `'allow' \| 'deny' \| 'escalate'` | exactly one (FR-008) |
-| `reason` | `string` | the Evaluator's `📝`, or the escalation reason from rule 1/2b/3 |
+| `reason` | `string` | the Evaluator's `📝`, or the escalation reason from rule 1/2b/3, or the last guidance message when 2a/4/5 exhausted the retries |
 | `evidence` | `Measurement \| null` | `observed`; `null` only when `verdict === 'escalate'` |
 | `rule` | `'1' \| '2a' \| '2b' \| '3' \| '4' \| '5' \| '6'` | which rule of research D-06 produced it; `'6'` = the Evaluator's verdict stood; `'2a'`, `'4'`, `'5'` appear only when the guidance retries are exhausted |
 
@@ -207,7 +207,8 @@ One held action moves through exactly these states. No other transition exists.
                  rule 6 ┌─────────────────┬─────────────── ┤ rule 6
                         ▼                 ▼                ▼
                      DENIED           ESCALATED         ALLOWED
-                        │            (rules 1,2b,3)         │
+                        │   (rules 1,2b,3; 2a/4/5 once      │
+                        │    the retries are spent)         │
                         │   rules 2a/4/5: guidance to the   │
                         │   Evaluator, back to DECIDED      │
        round 1 only ────┘                  │                ▼
@@ -220,7 +221,7 @@ One held action moves through exactly these states. No other transition exists.
 
 - `MEASURING` with no measurement produced → `ESCALATED` via rule 2b, never `DENIED`. A
   tool-usage mistake by the Evaluator (rules 2a, 4, 5) loops through a guidance turn and
-  never leaves `DECIDED`.
+  stays in `DECIDED` until `CROSSEXAM_EVALUATOR_RETRIES` guidances are spent, then `ESCALATED`.
 - `DENIED` at round 2 is terminal: the run ends with the action unexecuted and reports the
   denial as final (spec, Edge Cases).
 - `ESCALATED` is terminal until a human answers. There is **no** auto-approving timeout.
