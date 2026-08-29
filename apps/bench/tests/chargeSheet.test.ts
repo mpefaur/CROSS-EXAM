@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { GuardrailReport } from '@crossexam/core';
 
 import { assembleChargeSheet, type CaseOpening } from '../src/correlate/chargeSheet.ts';
+import type { HeldCall } from '../src/correlate/index.ts';
 
 /**
  * The obligations of contracts/charge-sheet.md that live in assembly (T026): the proposal
@@ -19,13 +20,17 @@ const guardrails: GuardrailReport = {
 
 const replica = { seed: 'crossexam-replica-v1', as_of: '2026-08-29', path: 'fixtures/replica.json' };
 
+/** What `correlate()` hands over (T025) — the tool name is recovered but never decoded from. */
+function heldCall(content: string): HeldCall {
+  return { approval_id: 'apr_xyz', tool_call_id: 'call_1', tool_name: 'bulk_refund', content };
+}
+
 function opening(content: string, over: Partial<CaseOpening> = {}): CaseOpening {
   return {
     case_id: 'case_001',
     session_id: 'ses_abc',
-    approval_id: 'apr_xyz',
     round: 1,
-    content,
+    held: heldCall(content),
     guardrails,
     transcript_excerpt: "Please refund this week's open disputes.",
     replica,

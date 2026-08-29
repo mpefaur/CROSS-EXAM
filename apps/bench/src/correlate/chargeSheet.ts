@@ -25,6 +25,8 @@ import type {
   ProposedAction,
 } from '@crossexam/core';
 
+import type { HeldCall } from './index.ts';
+
 /**
  * Everything one case needs at the moment it opens. A pure input: the run owns case
  * identity — `case_001`, monotonic per run (data-model §7) — and the clock, so assembly
@@ -35,15 +37,13 @@ export interface CaseOpening {
   case_id: string;
   /** The acting agent's harness session. */
   session_id: string;
-  /** The pending `tool.approval_required` this resolves. */
-  approval_id: string;
   /** 1 on the first proposal, 2 on the re-proposal after a denial (spec, Assumptions). */
   round: 1 | 2;
   /**
-   * The text content of the `model.message` the correlation walked back to — the acting
-   * agent's own grammar line, and the only thing the proposal may be decoded from (D-14).
+   * What the correlation resolved (T025). Its `content` — the text of the `model.message`
+   * the approval pointed at — is the only thing the proposal may be decoded from (D-14).
    */
-  content: string;
+  held: HeldCall;
   /**
    * The four conventional controls, computed by the Bench (D-13). They are the contrast the
    * Evaluator names, not a gate: on the demo proposal all four pass, correctly.
@@ -76,12 +76,12 @@ export interface AssembledCase {
  * file's.
  */
 export function assembleChargeSheet(opening: CaseOpening): AssembledCase {
-  const proposal = decodeProposal(opening.content);
+  const proposal = decodeProposal(opening.held.content);
   return {
     charge_sheet: {
       case_id: opening.case_id,
       session_id: opening.session_id,
-      approval_id: opening.approval_id,
+      approval_id: opening.held.approval_id,
       round: opening.round,
       proposal: proposal.ok ? proposal.value : { parse_error: proposal.error },
       guardrails: opening.guardrails,
