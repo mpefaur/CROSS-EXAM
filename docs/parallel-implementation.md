@@ -35,7 +35,7 @@ makes the wave plan in §2 legal rather than optimistic.
 | **C-1** | **T009 depends on T007.** `decodeProposal(text): DecodeResult<ProposedAction>`, and the encoder takes a `Verdict` — both types live in `case.ts` (T007) | [contracts/wire-grammar.md](../specs/001-cross-exam-evaluator/contracts/wire-grammar.md) | T007 is on the **critical path**, not the side branch its bare `[P]` once implied. If T007 slips, the grammar and both builders slip with it |
 | **C-2** | **T014 has zero TypeScript dependencies.** `measure.py` is stdlib Python written against the predicate grammar and the emoji registry, not against any code in this repo | [data-model.md](../specs/001-cross-exam-evaluator/data-model.md) §5 · [emoji-grammar.md](./emoji-grammar.md) | Startable at t=0, alongside Phase 1. Largest single scheduling win |
 | **C-3** | **`decide()` (T018) needs only T007 + T008.** No grammar, no measurement code, no fixtures — the five rules *read* a `Measurement`, they never produce one | [research.md](../specs/001-cross-exam-evaluator/research.md) D-06 | The verdict lane opens during the Phase 2 window |
-| **C-4** | **T013 gates only the ledger readers** — T015's real run, T016, T021, T030. T014, T018, T020 and T022–T028 never open a ledger | [data-model.md](../specs/001-cross-exam-evaluator/data-model.md) §1–§3 | The Phase 2 → Phase 3 gate is narrower than "no user story work begins". Four lanes open on T009 alone |
+| **C-4** | **T013 gates only the ledger readers** — T015's real run, T016, T021, T030. T014, T018, T020 and T022–T028 never open a ledger | [data-model.md](../specs/001-cross-exam-evaluator/data-model.md) §1–§3 | The Phase 2 → Phase 3 gate is narrower than "no user story work begins". Four lanes open on T009; only the two ledger-reading steps inside them (T016, T021) also wait on T013 |
 
 C-1 is the one that bites — it moves a task onto the critical path. The other three only cost
 idle time if ignored.
@@ -52,10 +52,15 @@ changing it after either builder has branched breaks both sides at once. C-4 nar
 | **1** | — | T001 → T004 · T002 → T003 · **T005** · **T014** | 3–4. T005 and T014 have no dependencies at all — start both at t=0 |
 | **2** | T001–T005 | T006 → { **T007**, T008 } | 2 |
 | **3** | T007 + T008 | **T009** → T010 ‖ T011 → T012 → T013 ‖ T018 → T019 ‖ T022, T023, T024, T027, T028 | 4 lanes |
-| **4** | T009 merged | T015 → T016 → T017 ‖ T020 → T021 *(needs T013)* ‖ T025 → T026 ‖ T029 | 4 lanes |
+| **4** | T009 merged | T015 → T016 *(needs T013)* → T017 ‖ T020 → T021 *(needs T013)* ‖ T025 → T026 ‖ T029 *(needs T018)* | 4 lanes. "Opens when" is the grammar gate only — each lane still carries its own prerequisite in italics |
 | **5** | Wave 4 | T030 → T031 → T032 | **1 — serial join. The 14:30 cutline.** |
-| **6** | T032 | Phase 4 ‖ Phase 5 — **collide on `demo.ts`, see §3** | 2 with care |
-| **7** | — | T046 ‖ T047 | 2 |
+| **6** | T032 | Phase 4 (T033 → T034 → T035 → T036) ‖ Phase 5 (T037 → T038 → T039) — **collide on `demo.ts` and `chargeSheet.ts`, see §3** | 2 with care. Phase 4 first — it is never cut |
+| **7** | T032 **by 14:30 PDT** — otherwise Phases 6, 7 and 8 are cancelled outright | Phase 6 (T040 → T041) ‖ Phase 7 (T042 → T043) — **collide on `evaluator.ts`, see §3**; T043 reopens `resolve.ts` | 2 with care |
+| **8** | T041 + T043 **before the 16:00 PDT freeze** — otherwise not built | Phase 8: T044 → T045 — T045 reopens `resolve.ts` | 1 |
+| **9** | — | T046 ‖ T047 ‖ T049 at any time · T048 after T032, before 16:00 · **T050 last**, after every phase that was built | 3, then 1 |
+
+Every phase-closing task in the table — T032, T036, T039, T041, T043, T045, T050 — runs a real
+command and closes its wave; the next wave does not open on the feature PRs alone (§4).
 
 ### The four lanes, as standing assignments
 
@@ -96,9 +101,12 @@ Two consequences `tasks.md` does not draw:
 
 ### Mitigations, in order of payoff
 
-1. **Do not append to the root barrel from seven branches.** Import from the area barrels
-   (`packages/core/src/<area>/index.ts`) and write the root `index.ts` once, at the end of
-   Phase 2. `tasks.md` § Notes already concedes "expect to rebase" — this removes the need.
+1. **Keep appending to the root barrel, but one line per task and nothing else.**
+   `packages/core/package.json` exports only `src/index.ts` (T002), so `decide()` (T018) and the
+   docket (T044) are unreachable from the package unless their own task adds its export line —
+   `tasks.md` § Notes requires exactly that, and there is no one-shot barrel task to defer to.
+   Each branch appends a single `export * from './<area>/...'` at the end of the file; the
+   conflict is then a trivial one-line rebase, made linear by the merge order of item 3.
 2. **Give `demo.ts` and `resolve.ts` a single owner across all phases.** Every cross-phase
    conflict in the table above is one of those two files.
 3. **Merge Wave 3 in a fixed order** — T007, T008, T009, T011, T018 — so the barrel rebase is
