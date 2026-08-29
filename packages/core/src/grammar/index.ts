@@ -63,20 +63,27 @@ function parseLine(text: string, accepted: ReadonlySet<string>, arity: number): 
   return { ok: true, value: { key, fields } };
 }
 
-/** A bare non-negative integer. `+1`, `-1` and `1.0` are parse failures. */
+/**
+ * A bare non-negative integer. `+1`, `-1` and `1.0` are parse failures, and so is a digit
+ * string past `Number.MAX_SAFE_INTEGER`: `Number` rounds it silently, and a rounded figure
+ * presented as a measured one is the inference Constitution II forbids.
+ */
 function parseInteger(raw: string): number | null {
-  return /^\d+$/u.test(raw) ? Number(raw) : null;
+  if (!/^\d+$/u.test(raw)) return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) ? value : null;
 }
 
 /**
  * `#.##` dollars → integer cents. `$840.00`, `840`, `840.0` and `1,204.00` are parse
  * failures. Integer arithmetic on the two halves: a float multiply loses cents at
- * ledger-sized amounts.
+ * ledger-sized amounts. Cents past `Number.MAX_SAFE_INTEGER` fail as in `parseInteger`.
  */
 function parseCents(raw: string): number | null {
   if (!/^\d+\.\d{2}$/u.test(raw)) return null;
   const point = raw.length - 3;
-  return Number(raw.slice(0, point)) * 100 + Number(raw.slice(point + 1));
+  const cents = Number(raw.slice(0, point)) * 100 + Number(raw.slice(point + 1));
+  return Number.isSafeInteger(cents) ? cents : null;
 }
 
 function parseTriple(fields: readonly string[]): DecodeResult<MeasuredTriple> {
@@ -130,22 +137,18 @@ export function decodeMeasurement(text: string): DecodeResult<MeasuredTriple> {
   return parseTriple(parsed.value.fields);
 }
 
-/** A value containing `\n` or `|` is a programming error: unrepresentable, so throw (encoder obligation 3). */
-function field(value: string): string {
-  if (value.includes('\n') || value.includes('|')) {
-    throw new Error('grammar: a field value contains a newline or a | and cannot be encoded');
-  }
-  return value;
-}
-
 /** Integer cents → `#.##`. */
 export function dollars(cents: number): string {
   const fraction = cents % 100;
   return `${(cents - fraction) / 100}.${String(fraction).padStart(2, '0')}`;
 }
 
+/** A value containing `\n` or `|` is a programming error: unrepresentable, so throw (encoder obligation 3). */
 function encodeLine(key: string, fields: readonly string[]): string {
-  return key + fields.map(field).join(' | ');
+  if (fields.some((value) => value.includes('\n') || value.includes('|'))) {
+    throw new Error('grammar: a field value contains a newline or a | and cannot be encoded');
+  }
+  return key + fields.join(' | ');
 }
 
 function keyOf<V>(keys: ReadonlyMap<string, V>, value: V): string {

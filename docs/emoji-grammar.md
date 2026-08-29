@@ -29,8 +29,8 @@ One line per message. One emoji per line. No nesting. No JSON inside a field.
 <emoji><field> | <field> | <field>
 ```
 
-- The emoji is the first codepoint of the line and names the message kind. Everything
-  after it is the field list, split on `|`; each field is trimmed of surrounding
+- The emoji is the first codepoint of the line (surrounding whitespace trimmed) and names
+  the message kind. Everything after it is the field list, split on `|`; each field is trimmed of surrounding
   whitespace. `🧾status=disputed | 7 | 840.00` and `🧾status=disputed|7|840.00` are the same
   message.
 - Each key has a fixed **arity**. A field count other than the arity is a parse failure
