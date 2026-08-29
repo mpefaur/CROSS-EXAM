@@ -31,7 +31,7 @@ fell short. The check is done once, here; `plan.md` cites the outcome.
 | Correlate `tool.approval_required` → tool name + arguments | **No** — the event carries only `{id, source_event_id}` (`schema.ts:322-338`); the name and args live on the preceding `model.message` | **Falls short.** Own correlation in the orchestrator. |
 | Serialize turns per session | **No** — *"Creating a new turn in a session automatically cancels any turn still running"* | **Falls short.** Own per-session queue (FR-003). |
 | Measure a proposed action's reach over data | **No** — nothing in the harness executes a proposal against a replica and counts | **Falls short. This is the product.** Own measurement runner + seeded ledger. |
-| Recognise the emoji grammar as a tool call | **No** — the loop's only tool-call source is the provider's native `tool_calls` (`trueforge-core/dist/core/runtime/AgentThread.mjs:785,794` → `enrichAssistantMessage`); plain text ends the turn | **Falls short.** `pnpm patch` synthesises the call from grammar lines before enrichment (D-14); everything after that point stays native. |
+| Recognise the emoji grammar as a tool call | **No** — the loop's only tool-call source is the provider's native `tool_calls` (`trueforge-core/dist/core/runtime/AgentThread.mjs:785,794` → `enrichAssistantMessage`); plain text ends the turn | **Falls short.** `pnpm patch` wraps the `ILLM` adapter so the call is synthesised from grammar lines before the loop sees the message (D-14); everything after that point stays native. |
 
 Own code is therefore confined to six things: the harness patch (D-14), the orchestrator (correlation + serialization),
 the MCP server of irreversible actions, the seeded ledger and its generator, the measurement
@@ -310,44 +310,64 @@ hardcoded checks that exist to be shown passing.
 
 ### D-14 — Harness patch: grammar lines are first-class tool calls
 
-**Decision**: Patch `@truefoundry/trueforge-core@0.1.4` with `pnpm patch`, committed as
-`patches/@truefoundry__trueforge-core@0.1.4.patch` and applied on every install. Two sites
-in `dist/core/runtime/AgentThread.mjs`:
+**Decision**: Patch `@truefoundry/trueforge@0.1.4` with `pnpm patch`, committed as
+`patches/@truefoundry__trueforge@0.1.4.patch` and applied on every install. One seam: the
+`llm:` factory in `apis/turns.ts` (`dist/main.js`, unbundled and source-mapped) constructs
+`new VercelAILLM(...)`; wrap it in a `GrammarToolCallLLM` implementing the same `ILLM`
+interface (`create()` / `createNonStream()`), ~60 lines, which:
 
-1. Before both `enrichAssistantMessage()` calls (lines 785 and 794 in 0.1.4): when the
-   assembled assistant message has no `tool_calls` and its text contains a `🧾` line,
-   synthesise `tool_calls: [{ id, type: "function", function: { name: <🧾 value>, arguments } }]`.
-   `arguments` is the JSON object of the other proposal-key lines by field name
-   (`criteria`, `declared_count`, `declared_value`) — raw strings, absent when the line is
-   absent. `content` is left untouched.
-2. In `transformToLLMRequest()` (line 599): never set `requestBody.tools`. The model learns
-   the tools only from the grammar in its prompt.
+1. **In** — deletes `body.tools` before delegating. No JSON tool schema reaches the model; it
+   learns the tools only from the grammar in its prompt.
+2. **Out** — re-yields every stream chunk untouched, and on the generator's final
+   `RawAssistantMessage`: if `tool_calls` is empty and `content` holds a `🧾` line, sets
+   `tool_calls = [{ id, type: "function", function: { name: <🧾 value>, arguments } }]` and
+   `finish_reason: "tool_calls"`. `arguments` is the JSON object of the other proposal-key
+   lines by field name (`criteria`, `declared_count`, `declared_value`) — raw strings, absent
+   when the line is absent. `content` is left untouched.
 
-Everything downstream is native and unchanged: `toolMapping` lookup →
-`tool_info.is_approval_required` from `require_approval_for_tools` →
-`tool.approval_required` → resolve with `reason` → tool result → next LLM call.
+`trueforge-core` is not edited. Everything after the seam is native and unchanged:
+`enrichAssistantMessage` → `tool_info.is_approval_required` from the MCP `destructive`
+annotation → `tool.approval_required` → resolve with `reason` → tool result → next LLM call.
+Source, at upstream commit `a3a1395`: seam `packages/trueforge/src/apis/turns.ts:146-162`;
+gate `packages/trueforge-core/src/core/runtime/AgentThread.ts:1073-1144` (`enrichAssistantMessage`
+is called twice there — once for execution, once for the SSE event — which is why the
+injection lives upstream of both, on the `ILLM` return value); approval sentinel
+`packages/trueforge-core/src/core/mcp/ToolSet.ts:69-91`.
 
 **Rationale**: The loop's only tool-call source is the provider's `tool_calls`; plain text
-ends the turn (§A). The synthesis point is one function boundary, ~40 lines, and every
-hold / deny / escalate behaviour the spec relies on lives after it. `pnpm patch` rather
-than a fork because the pin to 0.1.4 already exists (R9), the dist is unbundled and
-readable, and a fork costs a clone, a build and a `file:` link under the clock.
+ends the turn (§A). `ILLM` is a public, pluggable interface and its return value is read by
+every downstream consumer — the synthesis plugs into an existing contract instead of editing
+control flow. `pnpm patch` rather than a fork because the pin to 0.1.4 already exists (R9),
+the dist is readable, and a fork costs a clone, a build and a `file:` link under the clock.
 
 **The patch is dumb on purpose.** It maps lines to strings; it validates nothing. The Bench
 decodes the original text strictly with `decodeProposal` (T026) — a missing `🔢` or a
 malformed line is still a parse failure → `escalate` (FR-002, FR-025). The tool never runs
 on a proposal the Bench did not decode, because the approval is the Bench's to resolve.
 
+**Facts to know**:
+- A denial reaches the model as a tool result: `{"error":"User denied tool call: <reason>"}`
+  (`ToolSet.ts:85-90`). The `📝` line rides inside that string. This is harness input to the
+  model, not model output; FR-024 governs what the model *emits*.
+- Streaming shows the grammar as plain-text deltas; only the final `model.message` carries
+  `tool_calls`. The state machine reads the final message, so this is cosmetic.
+- `stop` sequences are available per agent through `model_params` passthrough
+  (`agentSpec.ts:22-38` → `stopSequences` in `VercelAILLM`). Not needed: the turn ends on
+  its own and the wrapper reads the finished message.
+
 **Risks**:
 - *R-14a* — Anthropic rejects a request whose history holds `tool_use`/`tool_result` blocks
-  but declares no `tools`; the Evaluator runs on Claude. If the T008a run shows it, site 2
-  keeps `tools` on requests whose context already holds tool blocks, or renders prior calls
-  as text. Verified by a real turn, not assumed.
+  but declares no `tools`; the Evaluator runs on Claude. If the T008a run shows it, the
+  wrapper keeps `body.tools` on requests whose context already holds tool blocks, or renders
+  prior calls as text. Verified by a real turn, not assumed.
 - *R-14b* — The patch pins to 0.1.4 and fails loudly on a bump. Intended: R9 forbids bumps.
 
-**Alternatives considered**: fork `github.com/truefoundry/trueforge` and build from source
-— same change, more toolchain; revisit only if a second patch site appears. Bench owns the
-pause — D-08, third alternative.
+**Alternatives considered**: edit `AgentThread.stepLLMCall` in `trueforge-core` before both
+`enrichAssistantMessage()` calls — ~20 lines but a core control-flow edit, and a second
+patch site for `tools`; the wrapper covers both from one seam. Fork
+`github.com/truefoundry/trueforge` and build from source (`pnpm --filter @truefoundry/trueforge run dev`,
+tsup + tsc, port 8790) — same change, more toolchain; revisit only if a second seam
+appears. Bench owns the pause — D-08, third alternative.
 
 ## C. Remaining assumptions
 

@@ -134,7 +134,7 @@ apps/
         └── demo.ts                  # pnpm demo — the seeded scenario entrypoint
 
 fixtures/                            # generated, committed: production.json, replica.json
-patches/                             # pnpm patch on @truefoundry/trueforge-core — research D-14
+patches/                             # pnpm patch on @truefoundry/trueforge — research D-14
 ```
 
 **Structure Decision**: pnpm workspace with three packages, fixed by `AGENTS.md §1` and
@@ -154,5 +154,5 @@ fails on a type error ([research.md](./research.md) D-01).
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 | --- | --- | --- |
 | **A *how* lives in the spec** (Constitution VII): FR-024/FR-025 fix the emoji-keyed wire grammar in `spec.md` rather than here | The grammar is the contract **between the two agents**, and both sides must be built against it in parallel by two people in the same afternoon. Pinning it in the spec is what let `docs/emoji-grammar.md` be frozen before either builder started. Accepted explicitly by the owner in the spec's Assumptions and noted in `checklists/requirements.md` validation run 2 | Leaving it to `plan.md` — the artifact both builders agree on would then not exist until planning finished, which is after the point where builder B needs it. The cost of the deviation is one paragraph in the spec; the cost of the alternative is a merge conflict on the wire format at 13:00 |
-| **Own wire grammar replaces the harness's native tool-calling, through a `pnpm patch` on `trueforge-core`** (Constitution III, research D-14) | A field carrying JSON-escaped content must be re-parsed, and a failed re-parse is a lost tool call — on the one message the entire demo depends on. The flat emoji format is fewer tokens and is emitted more reliably by small models ([docs/emoji-grammar.md](../../docs/emoji-grammar.md) § Why) | Native tool-calling with a JSON argument object. The source article puts it ahead only past ~10 tools; this feature has three. Rejected on the spec's own reasoning, not re-litigated here |
+| **Own wire grammar replaces the harness's native tool-calling, through a `pnpm patch` on the harness's `ILLM` seam** (Constitution III, research D-14) | A field carrying JSON-escaped content must be re-parsed, and a failed re-parse is a lost tool call — on the one message the entire demo depends on. The flat emoji format is fewer tokens and is emitted more reliably by small models ([docs/emoji-grammar.md](../../docs/emoji-grammar.md) § Why) | Native tool-calling with a JSON argument object. The source article puts it ahead only past ~10 tools; this feature has three. Rejected on the spec's own reasoning, not re-litigated here |
 | **Two measurement transports** (Constitution VIII — extra code) | FR-004 requires the identical measurement to run through a local isolated executor when the sandbox is unreachable, and Risk R1 rates sandbox loss as terminal | A single sandbox path — one venue-network failure ends the demo. Mitigated to near-zero extra complexity by sharing **one** `measure.py` across both transports, so the arithmetic has exactly one implementation ([research.md](./research.md) D-03) |
