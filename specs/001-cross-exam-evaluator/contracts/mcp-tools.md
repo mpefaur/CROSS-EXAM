@@ -10,8 +10,9 @@ Registered with `require_approval_for_tools: ["@all"]`, so every call below paus
 
 **How a call arrives.** The acting agent never sees this server's JSON schema. It writes the
 proposal as grammar lines in its own text; the patched harness ([research.md](../research.md)
-D-14) turns a message carrying `🧾bulk_refund` into a call to `bulk_refund`, with the other
-lines as string arguments — `🔍` → `criteria`, `🔢` → `declared_count`, `💵` → `declared_value`.
+D-14) turns a message whose line starts with `🧾` into a call to `bulk_refund` (`💸` →
+`issue_payout`, `🔒` → `close_account`), with the `|`-separated fields as string arguments
+by position — `criteria`, `declared_count`, `declared_value`.
 The argument tables below describe what the *harness* passes to this server, not what the
 model types.
 
@@ -22,7 +23,7 @@ model types.
 | Argument | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `criteria` | `string` | yes | Criteria grammar, [data-model.md](../data-model.md) §5 |
-| `declared_count` | `string` | yes | passed raw from the `🔢` line; the Bench parses it, this server does not — the agent's own belief; missing ⇒ `escalate` (FR-002) |
+| `declared_count` | `string` | yes | passed raw from the second field; the Bench parses it, this server does not — the agent's own belief; missing ⇒ `escalate` (FR-002) |
 | `declared_value` | `string` | yes | `#.##` dollars; missing ⇒ `escalate` |
 
 Annotations: `destructive: true`, `idempotent: false`.

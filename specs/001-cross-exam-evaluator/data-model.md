@@ -70,14 +70,15 @@ Same seed ⇒ byte-identical file, on every machine, forever.
 
 ## 4. ProposedAction
 
-What the acting agent emits, decoded from the emoji grammar.
+What the acting agent emits, decoded from the emoji grammar — one line, the tool's emoji
+first, then three `|`-separated fields in this order.
 
-| Field | Emoji key | Type | Required | Notes |
+| Field | Position | Type | Required | Notes |
 | --- | --- | --- | --- | --- |
-| `action` | `🧾` | `'bulk_refund' \| 'issue_payout' \| 'close_account'` | yes | must be a known irreversible tool. `tableFor(action)`: `bulk_refund` → `charges`, `issue_payout` → `payouts`, `close_account` → `charges` (the customer's charges are what a closure strands). D-06 rule 2 compares the `measure` result's echoed `table` against it |
-| `criteria` | `🔍` | `string` | yes | a Criteria expression (§5) |
-| `declared_count` | `🔢` | `integer` | yes | missing ⇒ `escalate` (FR-002) |
-| `declared_value_cents` | `💵` | `integer` | yes | parsed from `#.##` dollars; missing ⇒ `escalate` |
+| `action` | key | `'bulk_refund' \| 'issue_payout' \| 'close_account'` | yes | `🧾` / `💸` / `🔒`; must be a known irreversible tool. `tableFor(action)`: `bulk_refund` → `charges`, `issue_payout` → `payouts`, `close_account` → `charges` (the customer's charges are what a closure strands). D-06 rule 2 compares the `measure` result's echoed `table` against it |
+| `criteria` | 1 | `string` | yes | a Criteria expression (§5) |
+| `declared_count` | 2 | `integer` | yes | missing ⇒ `escalate` (FR-002) |
+| `declared_value_cents` | 3 | `integer` | yes | parsed from `#.##` dollars; missing ⇒ `escalate` |
 
 **Validation**
 - All four keys present exactly once. A repeated key is a parse failure.
@@ -179,9 +180,9 @@ Nothing in it is produced by code.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `verdict` | `'allow' \| 'deny'` | the `⚖` line. `escalate` is not in the Evaluator's grammar — escalation is the system's (research D-06: rules 1/2b/3, or exhausted retries); a `⚖escalate` from the Evaluator is a parse failure and gets rule-4 guidance |
-| `reason` | `string \| null` | the `📝` line |
-| `cited` | `MeasuredTriple \| null` | the `🧮`/`💰`/`♻` lines; required on `allow`/`deny` (registry) |
+| `verdict` | `'allow' \| 'deny'` | the key: `✅` or `⛔`. `escalate` has no key — escalation is the system's (research D-06: rules 1/2b/3, or exhausted retries); anything else the Evaluator writes is a parse failure and gets rule-4 guidance |
+| `reason` | `string` | field 4 |
+| `cited` | `MeasuredTriple` | fields 1–3; the line does not parse without them (registry) |
 
 **`Outcome`** — what `decide()` returns: `Verdict | Guidance`. A `Guidance` is
 `{ rule: '2a' | '4' | '5', message: string }` — the text the Bench sends the Evaluator as its next
@@ -194,7 +195,7 @@ turn; the re-issued verdict goes through `decide()` again (research D-06). At mo
 | Field | Type | Notes |
 | --- | --- | --- |
 | `verdict` | `'allow' \| 'deny' \| 'escalate'` | exactly one (FR-008) |
-| `reason` | `string` | the Evaluator's `📝`, or the escalation reason from rule 1/2b/3, or the last guidance message when 2a/4/5 exhausted the retries |
+| `reason` | `string` | the Evaluator's `reason` field, or the escalation reason from rule 1/2b/3, or the last guidance message when 2a/4/5 exhausted the retries |
 | `evidence` | `Measurement \| null` | `observed.result`; `null` only when `verdict === 'escalate'` |
 | `rule` | `'1' \| '2a' \| '2b' \| '3' \| '4' \| '5' \| '6'` | which rule of research D-06 produced it; `'6'` = the Evaluator's verdict stood; `'2a'`, `'4'`, `'5'` appear only when the guidance retries are exhausted |
 
@@ -215,7 +216,7 @@ One held action moves through exactly these states. No other transition exists.
                     proposal parses, figures present
    PROPOSED ──────────────────────────────────────────► MEASURING
       │                                                    │
-      │ parse failure / 🔢 or 💵 missing                    │ measurement produced
+      │ parse failure / declared figures missing           │ measurement produced
       │                                                    ▼
       └──────────────────────────────────────────────►  DECIDED
                                                            │
@@ -277,7 +278,7 @@ the full registry there, because it is configuration the harness needs and not a
 | `CROSSEXAM_ACTION_SERVER_URL` | `http://localhost:8801` | the action server, `packages/mcp` (registered on the target agent) |
 | `CROSSEXAM_MEASURE_SERVER_URL` | `http://localhost:8802` | the `measure` server, `packages/measure` (registered on the Evaluator; D-15) |
 | `CROSSEXAM_REPLICA_PATH` | `fixtures/replica.json` | the only ledger the `measure` server opens. Server ports sit at `:880x`, clear of TrueForge's `:8790` (local) and `:8791` (hosted) |
-| `CROSSEXAM_GRAMMAR_REGISTRY` | — (required for the demo; unset → adapter inert) | research D-14 — JSON: emoji → field name, `$tool` names the tool, `$tools` lists covered tool names. Mirrors [docs/emoji-grammar.md](../../docs/emoji-grammar.md) |
+| `CROSSEXAM_GRAMMAR_REGISTRY` | — (required for the demo; unset → adapter inert) | research D-14 — JSON: emoji → `[tool_name, ...argument_names]`, one entry per tool key, argument names in field order. Mirrors [docs/emoji-grammar.md](../../docs/emoji-grammar.md) |
 | `DAYTONA_API_KEY` | — (required) | needs Sandboxes **and** Snapshots(create) — Risk R1 |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | — (required) | model providers |
 

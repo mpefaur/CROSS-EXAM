@@ -108,7 +108,7 @@ we do not need.
 
 ### D-04 — Criteria are a fixed predicate grammar, never evaluated code
 
-**Decision**: A proposal's `🔍criteria` is a conjunction of comparisons joined by ` AND `:
+**Decision**: A proposal's `criteria` field is a conjunction of comparisons joined by ` AND `:
 `field op value`, where `field` is one of the ledger's known columns, `op` is one of
 `= != > >= < <=`, and `value` is a bare literal. No `OR`, no parentheses, no functions, no
 `eval`, no SQL. Anything else does not parse → no measurement → `escalate` (FR-025 → FR-010).
@@ -182,11 +182,12 @@ escalates under the rule that fired (`'2a'`, `'4'` or `'5'`), because no valid v
 obtained — and the per-case wall clock `CROSSEXAM_CASE_BUDGET_MS`, whose expiry is an
 infrastructure condition and escalates under rule 2b.
 
-1. Proposal did not parse, or `🔢`/`💵` missing → **`escalate`** (FR-002, FR-025). No
+1. Proposal did not parse — including fewer than its three fields, so a declared figure is
+   missing → **`escalate`** (FR-002, FR-025). No
    measurable proposal exists; this is the acting agent's message, not the Evaluator's.
 2. No observed measurement for this proposal:
    - **2a** `observed === null` (the Evaluator never called `measure`), or `observed.criteria`/
-     `observed.table` differ from the proposal's `🔍` and `tableFor(action)` (data-model §4) →
+     `observed.table` differ from the proposal's `criteria` and `tableFor(action)` (data-model §4) →
      **`Guidance`**: "measure the proposal's exact criteria on `<table>`".
    - **2b** `observed` matches the proposal but `observed.result === null` — both executors
      failed or exceeded their 20 s budget — **or** the case's wall clock
@@ -197,16 +198,16 @@ infrastructure condition and escalates under rule 2b.
    `observed.count` / `.value` / `.duplicates` below for brevity).
 3. `observed.value > escalation_threshold` → **`escalate`**, citing the observed figures
    (FR-011).
-4. The Evaluator's message did not decode as a verdict — including `⚖escalate`, which is not
-   in its grammar: escalation is the system's to write, never the model's — or on
-   `⚖allow`/`⚖deny` (or whenever a triple is present) its cited `🧮`/`💰`/`♻` differ from
-   `observed` → **`Guidance`**: the grammar it must use (`allow` or `deny`) and the figures it
+4. The Evaluator's message did not decode as a verdict — a wrong key, a wrong field count,
+   or any attempt to write an escalation, which has no key: escalation is the system's to
+   write, never the model's — or its `✅`/`⛔` cites a count, value or duplicate figure that
+   differs from `observed` → **`Guidance`**: the grammar it must use (`allow` or `deny`) and the figures it
    actually measured (Constitution II).
-5. The Evaluator wrote `⚖allow` while `observed.count != declared_count`,
+5. The Evaluator wrote `✅` while `observed.count != declared_count`,
    `observed.value != declared_value` (exact, to the cent), or `observed.duplicates > 0` →
    **`Guidance`**: the mismatch, line by line. It approved what its own measurement
    contradicts.
-6. Otherwise the Evaluator's verdict stands — `allow` or `deny`, with its `📝` — as a
+6. Otherwise the Evaluator's verdict stands — `✅` or `⛔`, with its `reason` field — as a
    `Verdict` with `evidence = observed.result` and `rule = '6'`.
 
 There is no "inconclusive" branch (spec, Clarification 3). The demo's first round is a
@@ -231,9 +232,9 @@ seeded data makes exactness free.
   run; the retry cap and the case wall clock bound it instead.
 - *A percentage tolerance on the declared figures*: speculative configuration with one
   possible value (Constitution VIII).
-- *The Evaluator may write `⚖escalate`*: a model-authored escalation bypasses every trigger in
-  FR-011 and parks the action on a person for no data reason. Rejected — `decodeVerdict` does
-  not accept it; the type cannot express it.
+- *An escalate key the Evaluator may write*: a model-authored escalation bypasses every trigger
+  in FR-011 and parks the action on a person for no data reason. Rejected — there is no such
+  key; `decodeVerdict` accepts `✅` and `⛔` only, and the type cannot express it.
 
 ### D-07 — The escalation threshold value, and the constraint the spec left implicit
 
@@ -261,11 +262,13 @@ P1 demo**, escalating the flagship denial. Recorded because it was the obvious f
 **Decision**: Implement [docs/emoji-grammar.md](../../docs/emoji-grammar.md) verbatim in
 `packages/core/src/grammar/`. The grammar is not a payload inside a native tool call — it
 **replaces** the provider's native tool-call format for the acting agent. The model writes
-the four proposal lines as plain assistant text; the patched harness (D-14) turns a message
-that carries a `🧾` line into a tool call named by that line, and the verdict travels back
-as grammar lines too. No JSON tool schema is ever sent to the model. Encoder and decoder are
-pure functions; the decoder is strict (unknown key, keyless line, or a key from the other
-direction → parse failure, no second attempt under a looser grammar).
+the one proposal line as plain assistant text; the patched harness (D-14) turns a message
+whose line starts with a registered tool emoji into a call to that tool, and the verdict
+travels back as one grammar line too. One emoji per tool — `🧾` *is* `bulk_refund` — never a
+generic action key with the tool name as a value, and never one key per field. No JSON tool
+schema is ever sent to the model. Encoder and decoder are pure functions; the decoder is
+strict (unknown key, wrong field count, or a key from the other direction → parse failure,
+no second attempt under a looser grammar).
 
 **Rationale**: FR-024/FR-025, and the source article's point taken in full: reliability
 degrades with nesting × heterogeneity × cleverness. A JSON tool call is a nested,
@@ -281,6 +284,11 @@ neither. This remains a **deliberate deviation** on two counts — a *how* in th
   surface the grammar exists to remove.
 - *The Bench decodes model text and owns the hold itself*: rebuilds the hold, the denial
   delivery and the escalate surface the harness already has (Constitution III). See D-14.
+- *One emoji per field* (the form of 2026-08-28 — `🧾bulk_refund` / `🔍…` / `🔢…` / `💵…`,
+  the article's literal format): a generic action key carrying the tool name, plus one key
+  per argument, chained across lines. Rejected 2026-08-29 (spec Clarifications): a tool is
+  one thing and gets one symbol; positional fields on one line cost fewer tokens and remove
+  the field keys a model can drop or repeat.
 
 ### D-09 — Serialization and timeouts
 
@@ -379,20 +387,21 @@ one more surface for a computation the Bench can do on data it already holds.
 source map) constructs `new VercelAILLM(...)`; wrap it in `GrammarToolCallLLM`, an `ILLM`
 implementation (`create()` / `createNonStream()`), ~80 lines. **Generic and registry-driven,
 not hardcoded to our keys.** At harness start it reads `CROSSEXAM_GRAMMAR_REGISTRY`
-(data-model §12): a JSON object mapping an emoji to a field name, with two reserved entries —
-the key mapped to `$tool` names the tool, and `$tools` lists the tool names the grammar
-covers. Unset → the wrapper is inert and the harness behaves stock. Either way it logs one
-line at start — the key count and the `$tools` list, or `inert` — so a stock harness is never
-mistaken for a model that did not propose.
+(data-model §12): a JSON object mapping each tool emoji to `[tool_name, ...argument_names]`,
+argument names in field order. Unset → the wrapper is inert and the harness behaves stock.
+Either way it logs one line at start — the key count and the tool names, or `inert` — so a
+stock harness is never mistaken for a model that did not propose.
 
 ```json
-{"$tools":["bulk_refund","issue_payout","close_account","measure"],
- "🧾":"$tool","🔍":"criteria","🔢":"declared_count","💵":"declared_value","🗂":"table"}
+{"🧾":["bulk_refund","criteria","declared_count","declared_value"],
+ "💸":["issue_payout","criteria","declared_count","declared_value"],
+ "🔒":["close_account","criteria","declared_count","declared_value"],
+ "📏":["measure","criteria","table"]}
 ```
 
 The wrapper is symmetric:
 
-- **In** — removes from `body.tools` every entry whose name is in `$tools`, so no JSON
+- **In** — removes from `body.tools` every entry whose name is a registered tool, so no JSON
   schema for a grammar tool reaches the model; other tools (the harness's built-ins —
   `create_sub_agent`, OpenUI) stay native. In prior context it drops `tool_calls` for
   grammar tools from assistant messages (their `content` already holds the lines) and turns
@@ -401,12 +410,12 @@ The wrapper is symmetric:
   without `tools`. Provider-agnostic; the deny reason and the `measure` result arrive as
   plain text.
 - **Out** — re-yields every stream chunk untouched. On the generator's final
-  `RawAssistantMessage`, if `tool_calls` is empty: for each `content` line whose first
-  codepoint is a registered key, the rest of the line is the raw string value; the `$tool`
-  key names the tool, every other registered key becomes an argument under its mapped name;
-  one leading `U+FE0F` after the key is dropped (models add it to `⚖`, `♻`, `🗂`); unregistered
-  lines are ignored. If a `$tool` line was found, set
-  `tool_calls = [{ id, type: "function", function: { name, arguments } }]` and
+  `RawAssistantMessage`, if `tool_calls` is empty: the first `content` line whose first
+  codepoint is a registered tool emoji names the tool; the rest of the line is split on `|`,
+  each field trimmed, and mapped by position onto the registered argument names as raw
+  strings — a missing position is an absent argument, an extra field is ignored; one leading
+  `U+FE0F` after the emoji is dropped; unregistered lines are ignored. If such a line was
+  found, set `tool_calls = [{ id, type: "function", function: { name, arguments } }]` and
   `finish_reason: "tool_calls"`. `content` is left untouched — the model must read its own
   proposal back.
 
@@ -427,7 +436,7 @@ transcript. What a person sees is a rendering concern, as a coding agent renders
 as a block rather than raw text: the Bench trace renders a proposal as
 "`bulk_refund` · `status=disputed` · declared 7 / $840.00" (T030); rendering in the harness
 frontend (`dist/_frontend`) is polish, T051, cut first. The Bench decodes the proposal from
-`content` with `decodeProposal` (T026) — the only source of truth; a missing `🔢` or a
+`content` with `decodeProposal` (T026) — the only source of truth; a missing field or a
 malformed line is a parse failure → `escalate` (FR-002, FR-025). The tool never runs on a
 proposal the Bench did not decode, because the approval is the Bench's to resolve.
 
@@ -462,7 +471,7 @@ under the clock. Constitution VIII tradeoff (one config surface with one value t
 `enrichAssistantMessage()` calls — a core control-flow edit and a second site for `tools`.
 Keep `body.tools` when history holds tool blocks — re-sends the JSON schema on every turn
 after the first deny, the exact surface D-08 removes. Scope the wrapper by model name —
-breaks when both agents share a model; scoping by `$tools` does not. Fork
+breaks when both agents share a model; scoping by the registered tool names does not. Fork
 `github.com/truefoundry/trueforge` and build from source — same change, more toolchain.
 Bench owns the pause — D-08, third alternative.
 
@@ -472,9 +481,9 @@ Bench owns the pause — D-08, third alternative.
 streamable-HTTP, attached only to the Evaluator agent), exposes one tool, `measure`, with
 string arguments `criteria` and `table` (`charges` | `payouts`), annotated read-only and
 non-destructive so it needs no approval. It runs the resolution order of D-03 (sandbox
-first, local fallback, one fresh 20 s budget each). On success it returns the three grammar
-lines exactly as `measure.py` printed them as its text result — what the Evaluator reads and
-cites — and the full `Measurement` as `structuredContent`: `{criteria, table, measured_count,
+first, local fallback, one fresh 20 s budget each). On success it returns the one `🧮` line
+exactly as `measure.py` printed it as its text result — what the Evaluator reads and cites —
+and the full `Measurement` as `structuredContent`: `{criteria, table, measured_count,
 measured_value_cents, duplicate_count, executor, duration_ms, script_sha256}`. On failure it
 returns `isError: true`, one reason line as text (`criteria did not parse`, `ledger malformed`,
 `both executors failed within 20 s`) and `{criteria, table, executor: null}` as
@@ -485,7 +494,7 @@ never re-parses grammar text; `decodeMeasurement` runs only inside the executors
 `measure.py` stdout. It reads the replica at `CROSSEXAM_REPLICA_PATH` and listens
 on `CROSSEXAM_MEASURE_SERVER_URL`; the action server listens on `CROSSEXAM_ACTION_SERVER_URL`
 (data-model §12). `pnpm demo` starts both (T030). The Evaluator invokes it in the grammar —
-`🧾measure` / `🔍<criteria>` / `🗂<table>` — through the D-14 adapter. The Bench reads the
+`📏<criteria> | <table>` — through the D-14 adapter. The Bench reads the
 last `measure` tool-result event of the Evaluator's turn to build `observed` for `decide()` (D-06).
 
 **Rationale**: The models make the tool calls; nothing deterministic decides for them. The
