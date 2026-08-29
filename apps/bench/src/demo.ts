@@ -112,8 +112,19 @@ export function readExecution(index: EventIndex, toolCallId: string): ExecutionO
     const fields = parsed as Record<string, unknown>;
 
     // The refusal path: the server said why, and that reason is what the run must show.
-    const reason = errorText(fields['error']);
-    if (reason !== null) return { executed: false, reason };
+    // `error` is the MCP content array the harness wrapped, so the text parts are the reason.
+    const wrapped = fields['error'];
+    if (typeof wrapped === 'string') return { executed: false, reason: wrapped };
+    if (Array.isArray(wrapped)) {
+      const reason = wrapped
+        .flatMap((part) =>
+          typeof part === 'object' && part !== null && (part as { type?: unknown }).type === 'text'
+            ? [String((part as { text: unknown }).text)]
+            : [],
+        )
+        .join('\n');
+      if (reason !== '') return { executed: false, reason };
+    }
 
     if (fields['executed'] !== true) return unreadable;
     const { action, count, value_cents: value } = fields;
@@ -122,20 +133,6 @@ export function readExecution(index: EventIndex, toolCallId: string): ExecutionO
     return { executed: true, action, count: count as number, value_cents: value as number };
   }
   return unreadable;
-}
-
-/** The text of an MCP content array the harness wrapped as `{error: …}`, when that is what this is. */
-function errorText(error: unknown): string | null {
-  if (typeof error === 'string') return error;
-  if (!Array.isArray(error)) return null;
-  const text = error
-    .flatMap((part) =>
-      typeof part === 'object' && part !== null && (part as { type?: unknown }).type === 'text'
-        ? [String((part as { text: unknown }).text)]
-        : [],
-    )
-    .join('\n');
-  return text === '' ? null : text;
 }
 
 async function openSession(client: TrueForge, agentName: string): Promise<string> {
