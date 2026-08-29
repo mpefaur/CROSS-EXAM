@@ -270,8 +270,8 @@ carries its real value there, a repository path and not a credential.
 | `TRUEFORGE_BASE_URL` | `http://localhost:8790` | harness, local mode |
 | `TARGET_AGENT_NAME` | `ops-support-agent` | FR-022 — attach to any agent by config, not by code |
 | `EVALUATOR_AGENT_NAME` | `cross-exam-evaluator` | |
-| `TARGET_MODEL` | `openai/gpt-5.4-mini` | research D-10 |
-| `EVALUATOR_MODEL` | `anthropic/claude-sonnet-4-6` | research D-10 |
+| `TARGET_MODEL` | `openai/gpt-5-6-luna` | research D-10 |
+| `EVALUATOR_MODEL` | `openai/gpt-5-6-terra` | research D-10 |
 | `CROSSEXAM_ESCALATION_THRESHOLD_USD` | `250000` | research D-07 — the band is `$96,310 < t < $418,220` |
 | `CROSSEXAM_MEASUREMENT_TIMEOUT_MS` | `20000` | FR-010, SC-011 |
 | `CROSSEXAM_EVALUATOR_RETRIES` | `3` | research D-06/D-09 — guidance rounds per held action before the next tool-usage failure escalates |
@@ -280,7 +280,7 @@ carries its real value there, a repository path and not a credential.
 | `CROSSEXAM_MEASURE_SERVER_URL` | `http://localhost:8802` | the `measure` server, `packages/measure` (registered on the Evaluator; D-15) |
 | `CROSSEXAM_REPLICA_PATH` | `fixtures/replica.json` | the only ledger the `measure` server opens. Server ports sit at `:880x`, clear of TrueForge's `:8790` (local) and `:8791` (hosted) |
 | `CROSSEXAM_GRAMMAR_REGISTRY_PATH` | — (required for the demo; unset → adapter inert) | research D-14 — path to `packages/core/src/grammar/registry.json`, the one registry file the decoders import and the harness adapter reads. Relative to the directory the harness starts from |
-| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | — (required) | model providers |
+| `OPENAI_API_KEY` | — (required) | model provider |
 
 No credential is ever printed, logged, or echoed — not truncated, not in an error message
 (FR-023, SC-010).

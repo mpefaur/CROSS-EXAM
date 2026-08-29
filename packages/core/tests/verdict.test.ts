@@ -27,12 +27,10 @@ import { decide, type CaseState } from '../src/verdict/decide.ts';
  * pure function. The real one only ever comes from an executor (Constitution II).
  */
 
-/** Dummy values: `loadConfig` requires all three, and no assertion below reads them. */
+/** Dummy value: `loadConfig` requires the key, and no assertion below reads it. */
 const config = (env: NodeJS.ProcessEnv = {}) =>
   loadConfig({
-    DAYTONA_API_KEY: 'dummy-daytona-value',
     OPENAI_API_KEY: 'dummy-openai-value',
-    ANTHROPIC_API_KEY: 'dummy-anthropic-value',
     ...env,
   });
 

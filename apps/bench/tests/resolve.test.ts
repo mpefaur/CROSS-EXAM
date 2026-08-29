@@ -34,7 +34,7 @@ const config: Config = {
   measure_server_url: 'http://localhost:8792/mcp',
   replica_path: 'fixtures/replica.json',
   grammar_registry_path: null,
-  credentials: { OPENAI_API_KEY: 'o', ANTHROPIC_API_KEY: 'a' },
+  credentials: { OPENAI_API_KEY: 'o' },
 };
 
 /** The seeded US1 proposal: 1,240 rows declared, $96,310.00 measured (research D-07). */

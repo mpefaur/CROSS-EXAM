@@ -17,7 +17,7 @@ detail lives in `tasks.md` and the code. Every command below is one you actually
 | pnpm 11.4.0 | `pnpm -v` | research D-01, T001 |
 | Python 3 | `python3 --version` | the measurement script ([contract](./contracts/measurement-executor.md)) |
 | TrueForge on `:8790` | `pnpm install && pnpm exec trueforge` | local mode, SQLite. From the workspace, never `npx` — the D-14 patch applies at install |
-| Model provider key | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | both agents |
+| Model provider key | `OPENAI_API_KEY` | both agents |
 | `CROSSEXAM_GRAMMAR_REGISTRY_PATH=packages/core/src/grammar/registry.json` exported **in the harness process's environment** before `pnpm exec trueforge`, started from the workspace root | `echo $CROSSEXAM_GRAMMAR_REGISTRY_PATH` | research D-14 — unset means a stock harness and no grammar tool call; the adapter logs `inert` and `pnpm demo` refuses to start |
 
 ```bash

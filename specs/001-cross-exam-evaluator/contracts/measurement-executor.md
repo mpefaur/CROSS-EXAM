@@ -75,7 +75,7 @@ below. It opens only `CROSSEXAM_REPLICA_PATH` and listens on `CROSSEXAM_MEASURE_
 | Outcome | `isError` | text content | `structuredContent` |
 | --- | --- | --- | --- |
 | measurement produced | `false` | the script's `🧮` line, verbatim — what the Evaluator reads and cites | the full `Measurement` (data-model §8): `{ criteria, table, measured_count, measured_value_cents, duplicate_count, executor, duration_ms, script_sha256 }` |
-| no measurement — exit `2`, exit `3`, or the executor failed / timed out | `true` | one reason line: `criteria did not parse: <detail>` · `ledger malformed: <detail>` · `executor failed within 20 s` | `{ criteria, table, executor: null }` |
+| no measurement — exit `2`, exit `3`, or the executor failed / timed out | `true` | one line: `no measurement: <criteria> on <table>`. `measure()` returns `null` for every failure and carries no exit code, so the line does not say which; the Bench never reads it (T017a, 2026-08-29) | `{ criteria, table, executor: null }` |
 
 `criteria` and `table` are always present, copied from the call's own arguments, so the Bench
 can tell a failed call on the proposal's criteria (D-06 rule 2b) from a call on other criteria

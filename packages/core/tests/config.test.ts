@@ -10,7 +10,6 @@ import { loadConfig } from '../src/model/config.ts';
  */
 const creds = {
   OPENAI_API_KEY: 'Vt3Nk8Rz5Qw1Ym7Bd4Gs9Lp2Hj6Fx0',
-  ANTHROPIC_API_KEY: 'Cw5Jd2Nq8Xr4Kt7Vb1Zm9Ph3Ls6Gy0',
 } satisfies NodeJS.ProcessEnv;
 
 const env = (extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({ ...creds, ...extra });
@@ -40,8 +39,8 @@ describe('loadConfig defaults (data-model §12)', () => {
       trueforge_base_url: 'http://localhost:8790',
       target_agent_name: 'ops-support-agent',
       evaluator_agent_name: 'cross-exam-evaluator',
-      target_model: 'openai/gpt-5.4-mini',
-      evaluator_model: 'anthropic/claude-sonnet-4-6',
+      target_model: 'openai/gpt-5-6-luna',
+      evaluator_model: 'openai/gpt-5-6-terra',
       escalation_threshold_usd: 250000,
       measurement_timeout_ms: 20000,
       evaluator_retries: 3,
@@ -70,12 +69,12 @@ describe('loadConfig defaults (data-model §12)', () => {
   it('treats an empty variable as unset, so an empty registry path leaves the adapter inert', () => {
     const c = loadConfig(env({ CROSSEXAM_GRAMMAR_REGISTRY_PATH: '', TARGET_MODEL: '' }));
     expect(c.grammar_registry_path).toBeNull();
-    expect(c.target_model).toBe('openai/gpt-5.4-mini');
+    expect(c.target_model).toBe('openai/gpt-5-6-luna');
   });
 });
 
 describe('loadConfig validation', () => {
-  it.each(['OPENAI_API_KEY', 'ANTHROPIC_API_KEY'] as const)(
+  it.each(['OPENAI_API_KEY'] as const)(
     'throws when %s is missing, and again when it is empty',
     (name) => {
       const without = env();
@@ -108,7 +107,6 @@ describe('loadConfig never echoes a credential, truncated or whole (FR-023, SC-0
     expectNoCredentialFragment(inspect(c, { depth: null }));
     expect(JSON.parse(JSON.stringify(c.credentials))).toEqual({
       OPENAI_API_KEY: '[redacted]',
-      ANTHROPIC_API_KEY: '[redacted]',
     });
   });
 
@@ -122,7 +120,6 @@ describe('loadConfig never echoes a credential, truncated or whole (FR-023, SC-0
   it('still hands the real value to the code that needs it', () => {
     const c = loadConfig(env());
     expect(c.credentials.OPENAI_API_KEY).toBe(creds.OPENAI_API_KEY);
-    expect(c.credentials.ANTHROPIC_API_KEY).toBe(creds.ANTHROPIC_API_KEY);
   });
 
   it('names the variable but not its value in a validation error', () => {
@@ -139,8 +136,8 @@ describe('loadConfig never echoes a credential, truncated or whole (FR-023, SC-0
     expect(bad).toContain('CROSSEXAM_CASE_BUDGET_MS');
     expectNoCredentialFragment(bad);
 
-    const missing = thrown(() => loadConfig({ OPENAI_API_KEY: creds.OPENAI_API_KEY }));
-    expect(missing).toContain('ANTHROPIC_API_KEY');
+    const missing = thrown(() => loadConfig({ CROSSEXAM_CASE_BUDGET_MS: creds.OPENAI_API_KEY }));
+    expect(missing).toContain('OPENAI_API_KEY');
     expectNoCredentialFragment(missing);
   });
 });

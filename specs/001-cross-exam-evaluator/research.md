@@ -309,8 +309,8 @@ long SSE read and look like an agent bug.
 ### D-10 — Models
 
 **Decision**: Both agents configured by environment variable, defaulting to
-`openai/gpt-5.4-mini` for the acting agent and `anthropic/claude-sonnet-4-6` for the
-Evaluator. Neither is hardcoded (FR-022 applies the same principle to agent identity).
+`openai/gpt-5-6-luna` for the acting agent and `openai/gpt-5-6-terra` for the
+Evaluator, both on the one `OPENAI_API_KEY` (2026-08-29). Neither is hardcoded (FR-022 applies the same principle to agent identity).
 
 **Rationale**: `docs/research-findings.md §2.3` marks the model split an **[ASSUMPTION] to
 validate at the table** — OpenAI is the event's model partner and gives every attendee $50
@@ -477,8 +477,8 @@ one fresh 20 s budget. On success it returns the one `🧮` line
 exactly as `measure.py` printed it as its text result — what the Evaluator reads and cites —
 and the full `Measurement` as `structuredContent`: `{criteria, table, measured_count,
 measured_value_cents, duplicate_count, executor, duration_ms, script_sha256}`. On failure it
-returns `isError: true`, one reason line as text (`criteria did not parse`, `ledger malformed`,
-`executor failed within 20 s`) and `{criteria, table, executor: null}` as
+returns `isError: true`, one line as text (`no measurement: <criteria> on <table>` — `measure()`
+returns `null` for every failure, so no reason is distinguished) and `{criteria, table, executor: null}` as
 `structuredContent`. `criteria` and `table` are always present, copied from the call's own
 arguments, so the Bench can tell a failed call on the proposal's criteria (D-06 rule 2b) from a
 call on other criteria (rule 2a). The Bench builds `observed` from `structuredContent` alone and

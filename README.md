@@ -202,6 +202,8 @@ apps/bench/          The Bench (the orchestrator)
                      serializes turns per session, resolves the verdict
 packages/mcp/        Streamable-HTTP MCP server of irreversible actions
                      + the four conventional guardrails that pass
+packages/measure/    Streamable-HTTP MCP server of the read-only measure tool,
+                     attached only to the Evaluator; opens the replica only
 packages/core/
   ├── grammar/       The emoji wire format, the contract between the two agents
   ├── ledger/        RNG-free seeded generator: production and replica, independent seeds
@@ -258,7 +260,7 @@ demo underneath us:
 | pnpm 9                                             | `pnpm -v`                              |
 | Python 3                                           | `python3 --version`                    |
 | TrueForge on `:8790`                               | `npx @truefoundry/trueforge@0.1.4`     |
-| Model provider key                                 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` |
+| Model provider key                                 | `OPENAI_API_KEY`                       |
 
 
 ```bash
