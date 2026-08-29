@@ -48,43 +48,38 @@ const ACTION_ARGUMENTS = {
   declared_value: z.string(),
 };
 
-/** Register the three tools on a fresh MCP server. */
-export function createActionServer(): McpServer {
-  const server = new McpServer({ name: 'crossexam-actions', version: '0.0.0' });
-
-  for (const [name, description] of TOOLS) {
-    server.registerTool(
-      name,
-      {
-        description,
-        inputSchema: ACTION_ARGUMENTS,
-        annotations: { destructiveHint: true, idempotentHint: false, readOnlyHint: false },
-      },
-      () => ({
-        content: [
-          {
-            type: 'text' as const,
-            text: `${name} was proposed and is held for review. Nothing has been executed and no ledger has been read or written.`,
-          },
-        ],
-      }),
-    );
-  }
-
-  return server;
-}
-
 /**
- * Serve the three tools over streamable HTTP at `url`, resolving once it is listening.
+ * Serve the three tools over streamable HTTP at `url`, resolving once it is listening and
+ * rejecting if the bind fails.
  *
- * Stateless: each request gets its own server and transport, both closed with the
+ * Stateless: each request gets its own MCP server and transport, both closed with the
  * response, so no session state outlives a call.
  */
 export function startActionServer(url: string): Promise<HttpServer> {
   const { hostname, port } = new URL(url);
 
   const http = createServer((req, res) => {
-    const server = createActionServer();
+    const server = new McpServer({ name: 'crossexam-actions', version: '0.0.0' });
+
+    for (const [name, description] of TOOLS) {
+      server.registerTool(
+        name,
+        {
+          description,
+          inputSchema: ACTION_ARGUMENTS,
+          annotations: { destructiveHint: true, idempotentHint: false, readOnlyHint: false },
+        },
+        () => ({
+          content: [
+            {
+              type: 'text' as const,
+              text: `${name} was proposed and is held for review. Nothing has been executed and no ledger has been read or written.`,
+            },
+          ],
+        }),
+      );
+    }
+
     // No `sessionIdGenerator` — stateless mode (SDK 1.30.0 streamableHttp.d.ts).
     const transport = new StreamableHTTPServerTransport({});
     res.on('close', () => {
@@ -97,7 +92,16 @@ export function startActionServer(url: string): Promise<HttpServer> {
     void server.connect(transport as Transport).then(() => transport.handleRequest(req, res));
   });
 
-  return new Promise((resolve) => {
-    http.listen(port === '' ? 80 : Number(port), hostname, () => resolve(http));
+  return new Promise((resolve, reject) => {
+    // A bind failure — `EADDRINUSE` when something already holds the port — reaches the
+    // caller as a rejection instead of an unhandled `error` event that kills the process
+    // before it can say which server failed. Once listening the handler is dropped, so a
+    // later server error still fails loudly rather than settling an already-settled
+    // promise.
+    http.once('error', reject);
+    http.listen(port === '' ? 80 : Number(port), hostname, () => {
+      http.removeListener('error', reject);
+      resolve(http);
+    });
   });
 }

@@ -10,7 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { loadConfig } from '@crossexam/core';
 import { startActionServer } from './server.ts';
 
-export { createActionServer, startActionServer } from './server.ts';
+export { startActionServer } from './server.ts';
 
 const entrypoint = process.argv[1];
 if (entrypoint !== undefined && import.meta.url === pathToFileURL(entrypoint).href) {
