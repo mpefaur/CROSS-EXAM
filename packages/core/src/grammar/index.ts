@@ -178,67 +178,10 @@ export function decodeProposal(text: string): DecodeResult<ProposedAction> {
 }
 
 /**
- * The Evaluator's verdict. `⚖` is required and accepts `allow` and `deny` only:
- * `⚖escalate` is a parse failure because escalation is written by the system's `decide()`,
- * never by the Evaluator (obligation 9, research D-06). `📝` is optional.
- *
- * The `🧮`/`💰`/`♻` citation is all-or-nothing. All three present is a citation; all three
- * absent is `cited: null`, which `decide()` rule 4 then turns into an escalation. A partial
- * triple is a parse failure rather than a partial citation: one or two numbers cannot be
- * compared against `observed`, and keeping the lines the model did write while inventing
- * the rest — or silently dropping them — is exactly the inference obligation 4 forbids.
+ * The `🧮`/`💰`/`♻` triple, all three required (obligation 3). It is `measure.py`'s whole
+ * output and, on a verdict, the citation — the same three keys parsed the same way.
  */
-export function decodeVerdict(text: string): DecodeResult<EvaluatorVerdict> {
-  const parsed = parseLines(text, VERDICT_KEYS);
-  if (!parsed.ok) return parsed;
-  const fields = parsed.value;
-
-  const verdict = fields.get(VERDICT);
-  if (verdict === undefined) return { ok: false, error: missing(VERDICT) };
-  if (verdict !== 'allow' && verdict !== 'deny') {
-    return {
-      ok: false,
-      error: `key ${VERDICT} accepts allow or deny only: ${JSON.stringify(verdict)}`,
-    };
-  }
-
-  const rawCount = fields.get(MEASURED_COUNT);
-  const rawValue = fields.get(MEASURED_VALUE);
-  const rawDuplicates = fields.get(DUPLICATE_COUNT);
-  const present = [rawCount, rawValue, rawDuplicates].filter((raw) => raw !== undefined).length;
-  if (present !== 0 && present !== 3) {
-    return {
-      ok: false,
-      error:
-        `a partial citation is not a citation: ${MEASURED_COUNT}, ${MEASURED_VALUE} and ` +
-        `${DUPLICATE_COUNT} travel together or not at all`,
-    };
-  }
-
-  let cited: MeasuredTriple | null = null;
-  if (rawCount !== undefined && rawValue !== undefined && rawDuplicates !== undefined) {
-    const measured_count = parseInteger(rawCount);
-    if (measured_count === null) return { ok: false, error: badNumber(MEASURED_COUNT) };
-    const measured_value_cents = parseCents(rawValue);
-    if (measured_value_cents === null) return { ok: false, error: badNumber(MEASURED_VALUE) };
-    const duplicate_count = parseInteger(rawDuplicates);
-    if (duplicate_count === null) return { ok: false, error: badNumber(DUPLICATE_COUNT) };
-    cited = { measured_count, measured_value_cents, duplicate_count };
-  }
-
-  return { ok: true, value: { verdict, reason: fields.get(REASON) ?? null, cited } };
-}
-
-/**
- * `measure.py` stdout — exactly `🧮`, `💰`, `♻`, all three required (obligation 6). This is
- * the executors' decoder and runs nowhere else: the Bench builds `observed` from the
- * `measure` tool's `structuredContent`, never from its text.
- */
-export function decodeMeasurement(text: string): DecodeResult<MeasuredTriple> {
-  const parsed = parseLines(text, MEASUREMENT_KEYS);
-  if (!parsed.ok) return parsed;
-  const fields = parsed.value;
-
+function decodeTriple(fields: ReadonlyMap<string, string>): DecodeResult<MeasuredTriple> {
   const rawCount = fields.get(MEASURED_COUNT);
   if (rawCount === undefined) return { ok: false, error: missing(MEASURED_COUNT) };
   const measured_count = parseInteger(rawCount);
@@ -255,6 +198,48 @@ export function decodeMeasurement(text: string): DecodeResult<MeasuredTriple> {
   if (duplicate_count === null) return { ok: false, error: badNumber(DUPLICATE_COUNT) };
 
   return { ok: true, value: { measured_count, measured_value_cents, duplicate_count } };
+}
+
+/**
+ * The Evaluator's verdict. `⚖` is required and accepts `allow` and `deny` only:
+ * `⚖escalate` is a parse failure because escalation is written by the system's `decide()`,
+ * never by the Evaluator (obligation 9, research D-06). `📝` is optional.
+ *
+ * The `🧮`/`💰`/`♻` citation is **required**, not optional: the registry says `⚖allow` and
+ * `⚖deny` require all three in the same message, and a missing required key is a parse
+ * failure (obligation 3). A verdict without measured figures is a Constitution II violation,
+ * not an incomplete message, so it never decodes — partial or wholly absent alike. The
+ * failure reaches `decide()` rule 4 as "did not decode as a verdict" and yields a `Guidance`.
+ */
+export function decodeVerdict(text: string): DecodeResult<EvaluatorVerdict> {
+  const parsed = parseLines(text, VERDICT_KEYS);
+  if (!parsed.ok) return parsed;
+  const fields = parsed.value;
+
+  const verdict = fields.get(VERDICT);
+  if (verdict === undefined) return { ok: false, error: missing(VERDICT) };
+  if (verdict !== 'allow' && verdict !== 'deny') {
+    return {
+      ok: false,
+      error: `key ${VERDICT} accepts allow or deny only: ${JSON.stringify(verdict)}`,
+    };
+  }
+
+  const cited = decodeTriple(fields);
+  if (!cited.ok) return cited;
+
+  return { ok: true, value: { verdict, reason: fields.get(REASON) ?? null, cited: cited.value } };
+}
+
+/**
+ * `measure.py` stdout — exactly `🧮`, `💰`, `♻`, all three required (obligation 6). This is
+ * the executors' decoder and runs nowhere else: the Bench builds `observed` from the
+ * `measure` tool's `structuredContent`, never from its text.
+ */
+export function decodeMeasurement(text: string): DecodeResult<MeasuredTriple> {
+  const parsed = parseLines(text, MEASUREMENT_KEYS);
+  if (!parsed.ok) return parsed;
+  return decodeTriple(parsed.value);
 }
 
 /* -------------------------------------------------------------------------- */
