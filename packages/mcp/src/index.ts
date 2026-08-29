@@ -13,6 +13,8 @@ import { startActionServer } from './server.ts';
 export { startActionServer } from './server.ts';
 /** Production execution on an `allow` resolution (T021) — never at proposal time. */
 export { executeOnAllow, PRODUCTION_LEDGER_PATH } from './execute.ts';
+/** The four conventional controls (T037) — called by the Bench at charge-sheet assembly. */
+export { checkGuardrails, SELF_REPORTED_CONFIDENCE } from './guardrails.ts';
 
 const entrypoint = process.argv[1];
 if (entrypoint !== undefined && import.meta.url === pathToFileURL(entrypoint).href) {

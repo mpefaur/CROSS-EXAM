@@ -177,7 +177,7 @@ Scenario 4 each return `⚖ escalate`, none emits `allow` or `deny`, and no atte
 **Independent Test**: `pnpm demo -- --guardrails-only` prints four `PASS` lines and no block;
 the full `pnpm demo` then stops the identical action ([quickstart.md](./quickstart.md) Scenario 3).
 
-- [ ] T037 [US2] Implement the four checks as a pure function in `packages/mcp/src/guardrails.ts` — $2,000 per-action ceiling, per-customer frequency cap, eligibility-policy check, and a self-reported confidence of 0.94 — over a decoded proposal and the session's prior proposals; all four pass on the damaging proposal; four hardcoded checks, no engine (FR-017, D-13)
+- [x] T037 [US2] Implement the four checks as a pure function in `packages/mcp/src/guardrails.ts` — $2,000 per-action ceiling, per-customer frequency cap, eligibility-policy check, and a self-reported confidence of 0.94 — over a decoded proposal and the session's prior proposals; all four pass on the damaging proposal; four hardcoded checks, no engine (FR-017, D-13)
 - [ ] T038 [US2] Call the four checks from the Bench at charge-sheet assembly in `apps/bench/src/correlate/chargeSheet.ts` and attach the `GuardrailReport`, render the four pass/fail lines in the `apps/bench/src/demo.ts` trace, and add the `--guardrails-only` flag that stops after them. Nothing about the guardrails touches the harness patch or the tool handler (FR-018, D-13)
 - [ ] T039 [US2] Run [quickstart.md](./quickstart.md) Scenario 3 and paste the output: four passes with no block, then the identical action denied by the measurement, with the on-screen gap $96,310.00 against $840.00 (SC-005, US2-1, US2-2)
 
