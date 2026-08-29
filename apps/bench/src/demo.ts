@@ -57,6 +57,24 @@ const BUSINESS_REQUEST = 'Please refund this week of open disputes.';
 /** One round of cross-examination, then the re-proposal (spec, Assumptions). */
 const MAX_ROUNDS = 2;
 
+/** How the run was invoked. */
+interface Options {
+  /**
+   * `--guardrails-only`: stop once the four conventional controls have reported, before the
+   * Evaluator is consulted (T038, quickstart Scenario 3).
+   *
+   * What the flag demonstrates is what it *cannot* do. It stops the run early, so the held
+   * action is never resolved and nothing is measured or executed — which is the contrast
+   * User Story 2 exists to show: four conventional controls pass the damaging proposal and,
+   * left to themselves, let it stand (FR-018).
+   */
+  guardrailsOnly: boolean;
+}
+
+export function parseOptions(argv: readonly string[]): Options {
+  return { guardrailsOnly: argv.includes('--guardrails-only') };
+}
+
 const out = (line: string): void => {
   console.log(line);
 };
@@ -151,7 +169,7 @@ async function runTurn(
   });
 }
 
-async function run(config: Config): Promise<void> {
+async function run(config: Config, options: Options): Promise<void> {
   const client = createHarnessClient(config);
   await ensureAgents(client, config, {
     target: TARGET_INSTRUCTIONS,
@@ -240,6 +258,13 @@ async function run(config: Config): Promise<void> {
     out('');
     for (const line of proposalBlock(round, assembled.charge_sheet.proposal, guardrails)) out(line);
 
+    if (options.guardrailsOnly) {
+      // Every control passed and none of them blocked, so a system that trusted them would
+      // let this through. The action is still held only because the run stops here.
+      out(noteLine('guardrails only — no block. The action is still held, and unmeasured.'));
+      return;
+    }
+
     const action: HeldAction = {
       case_id: caseId,
       evaluator_session_id: evaluatorSession,
@@ -276,6 +301,7 @@ async function run(config: Config): Promise<void> {
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  const options = parseOptions(process.argv.slice(2));
 
   // A stock harness synthesises no tool call from a grammar line, so every proposal turn
   // would end as plain text and nothing would ever be held (D-14). Refusing here is the
@@ -298,7 +324,7 @@ async function main(): Promise<void> {
         timeoutMs: config.measurement_timeout_ms,
       }),
     );
-    await run(config);
+    await run(config, options);
   } finally {
     for (const server of started) {
       await new Promise((done) => {
