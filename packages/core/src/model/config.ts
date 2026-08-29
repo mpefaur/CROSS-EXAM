@@ -88,10 +88,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   Object.defineProperty(credentials, 'toJSON', { value: redact });
   Object.defineProperty(credentials, Symbol.for('nodejs.util.inspect.custom'), { value: redact });
 
+  const target_agent_name = str(env, 'TARGET_AGENT_NAME', 'ops-support-agent');
+  const evaluator_agent_name = str(env, 'EVALUATOR_AGENT_NAME', 'cross-exam-evaluator');
+  if (target_agent_name === evaluator_agent_name) {
+    // The two roles are upserted by name; one name would make the second overwrite the first.
+    throw new Error('TARGET_AGENT_NAME and EVALUATOR_AGENT_NAME must differ');
+  }
+
   return {
     trueforge_base_url: str(env, 'TRUEFORGE_BASE_URL', 'http://localhost:8790'),
-    target_agent_name: str(env, 'TARGET_AGENT_NAME', 'ops-support-agent'),
-    evaluator_agent_name: str(env, 'EVALUATOR_AGENT_NAME', 'cross-exam-evaluator'),
+    target_agent_name,
+    evaluator_agent_name,
     target_model: str(env, 'TARGET_MODEL', 'openai/gpt-5.4-mini'),
     evaluator_model: str(env, 'EVALUATOR_MODEL', 'anthropic/claude-sonnet-4-6'),
     escalation_threshold_usd: int(env, 'CROSSEXAM_ESCALATION_THRESHOLD_USD', 250000),

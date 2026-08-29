@@ -158,6 +158,16 @@ describe('synthesizeToolCall (outbound)', () => {
     expect(JSON.parse(synthesizeToolCall({ content: '🧾' }, registry())?.function.arguments ?? '')).toEqual({});
   });
 
+  it('trims an indented line, as the Bench decoders do (wire-grammar obligation 1)', () => {
+    const call = synthesizeToolCall({ content: 'Proposal:\n    \t🧾status=disputed | 7 | 840.00  ' }, registry());
+    expect(call?.function.name).toBe('bulk_refund');
+    expect(JSON.parse(call?.function.arguments ?? '')).toEqual({
+      criteria: 'status=disputed',
+      declared_count: '7',
+      declared_value: '840.00',
+    });
+  });
+
   it('reads text parts when content is an array', () => {
     const call = synthesizeToolCall({ content: [{ type: 'text', text: '🧾status=disputed | 7 | 840.00' }] }, registry());
     expect(call?.function.name).toBe('bulk_refund');
