@@ -256,6 +256,10 @@ earlier verdict with its cited evidence.
 
 ### Parallel Opportunities
 
+> Full wave plan, lane assignments, and the multi-writer files that `[P]` does not
+> cover: [docs/parallel-implementation.md](../../docs/parallel-implementation.md).
+> Read it before `/speckit.implement` — it corrects four dependencies stated below.
+
 - **Phase 1**: T003, T004, T005 in parallel after T002
 - **Phase 2**: T007 and T008 in parallel with each other after T006; T011 in parallel with T009 (different owners, different directories)
 - **Phase 3**: the three tracks run in parallel once Phase 2 is merged — A on measurement (T014, T015) and the verdict (T018), B on the MCP server (T020), A on the orchestrator (T022). T027 and T028 (the two prompts) are independent files
