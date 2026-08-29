@@ -90,3 +90,22 @@ describe('correlate', () => {
     expect(() => correlate(events2.last('tool.approval_required')!, events2)).toThrow('expected model.message');
   });
 });
+
+describe('correlate against a folded stream', () => {
+  it('finds the call the adapter synthesized after the text deltas', () => {
+    const events = index(
+      { type: 'model.message', id: 'm1', threadId: 'th', createdAt: AT },
+      { type: 'model.message.delta', id: 'm1', threadId: 'th', content: LINE, finishReason: 'stop' },
+      {
+        type: 'model.message.delta',
+        id: 'm1',
+        threadId: 'th',
+        toolCalls: [{ index: 0, ...toolCall('call_1', 'bulk_refund', '{}') }],
+        finishReason: 'tool_calls',
+      },
+      approval('a1', [{ id: 'call_1', sourceEventId: 'm1' }]),
+    );
+    const held = correlate(approval('a1', [{ id: 'call_1', sourceEventId: 'm1' }]), events);
+    expect(held).toEqual({ approval_id: 'a1', tool_call_id: 'call_1', tool_name: 'bulk_refund', content: LINE });
+  });
+});

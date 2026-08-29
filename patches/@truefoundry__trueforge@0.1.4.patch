@@ -31,10 +31,10 @@ index 0000000000000000000000000000000000000000..d679ab2d5349d2e2032d3e6b4487e740
 +}
 diff --git a/dist/grammarToolCallLLM.js b/dist/grammarToolCallLLM.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..c938912e1d7ed4e4b44f2b9a6e9a9b222fbedd1c
+index 0000000000000000000000000000000000000000..e56bb5e3e492e9f4da2dafac234e39738f9fd68f
 --- /dev/null
 +++ b/dist/grammarToolCallLLM.js
-@@ -0,0 +1,159 @@
+@@ -0,0 +1,168 @@
 +// CROSS-EXAM patch (research D-14): a registry-driven emoji-line-to-tool-call adapter
 +// around the harness's ILLM. Read once at start from the JSON file named by
 +// CROSSEXAM_GRAMMAR_REGISTRY_PATH; only its `kind: "tool"` entries matter here:
@@ -181,7 +181,16 @@ index 0000000000000000000000000000000000000000..c938912e1d7ed4e4b44f2b9a6e9a9b22
 +  }
 +  async *create(body) {
 +    const result = yield* this.inner.create(stripGrammarFromRequest(body, this.registry));
-+    return this.finish(result);
++    const finished = this.finish(result);
++    if (finished !== result) {
++      // The harness builds the persisted message from the return value but the SSE deltas
++      // from the chunks, so a synthesized call must also go out as one final chunk.
++      const call = finished.output.tool_calls[0];
++      yield {
++        choices: [{ index: 0, delta: { tool_calls: [{ index: 0, ...call }] }, finish_reason: "tool_calls" }]
++      };
++    }
++    return finished;
 +  }
 +  async createNonStream(body) {
 +    return this.finish(await this.inner.createNonStream(stripGrammarFromRequest(body, this.registry)));

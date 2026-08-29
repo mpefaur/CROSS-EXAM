@@ -55,16 +55,14 @@ describe('EventIndex', () => {
     expect(index.get(held.toolCalls[0]!.sourceEventId)).toBe(events[0]);
   });
 
-  it('indexes the whole message, never a delta that shares its id', () => {
+  it('indexes the message header once; a delta that shares its id folds into it', () => {
     const index = new EventIndex();
-    index.add(delta('m1', 'par'));
-    expect(() => index.get('m1')).toThrow('no event m1 in this turn');
-
-    const whole = message('m1', 'partial');
-    index.add(whole);
-    index.add(delta('m1', 'late'));
-    expect(index.get('m1')).toBe(whole);
-    expect(index.events).toHaveLength(3);
+    const header = message('m1', 'par');
+    index.add(header);
+    index.add(delta('m1', 'tial'));
+    expect(index.get('m1')).toBe(header);
+    expect(header.content).toBe('partial');
+    expect(index.events).toHaveLength(2);
   });
 
   it('throws on an id the turn never emitted', () => {
@@ -103,5 +101,39 @@ describe('consumeTurn', () => {
     await expect(consumeTurn(stream([message('m1', 'hi')]))).rejects.toThrow(
       'turn stream ended without turn.done',
     );
+  });
+});
+
+describe('EventIndex folds deltas into the streamed header', () => {
+  const header = (): Event => ({ type: 'model.message', id: 'm1', threadId: 'th', createdAt: AT });
+  const info = { type: 'mcp', name: 'bulk_refund', serverId: 'srv', serverName: 'actions' } as const;
+
+  it('appends text, starts a call on its name and appends its arguments, keeps the last finish reason', () => {
+    const index = new EventIndex();
+    index.add(header());
+    index.add({ type: 'model.message.delta', id: 'm1', threadId: 'th', content: '🧾status=' });
+    index.add({ type: 'model.message.delta', id: 'm1', threadId: 'th', content: 'disputed | 7 | 840.00', finishReason: 'stop' });
+    index.add({
+      type: 'model.message.delta',
+      id: 'm1',
+      threadId: 'th',
+      toolCalls: [{ index: 0, id: 'call_1', type: 'function', function: { name: 'bulk_refund', arguments: '{"a":' }, toolInfo: info }],
+    });
+    index.add({ type: 'model.message.delta', id: 'm1', threadId: 'th', toolCalls: [{ index: 0, function: { arguments: '1}' } }], finishReason: 'tool_calls' });
+    const message = index.get('m1');
+    expect(message.type).toBe('model.message');
+    if (message.type !== 'model.message') return;
+    expect(message.content).toBe('🧾status=disputed | 7 | 840.00');
+    expect(message.finishReason).toBe('tool_calls');
+    expect(message.toolCalls).toEqual([{ id: 'call_1', type: 'function', function: { name: 'bulk_refund', arguments: '{"a":1}' }, toolInfo: info }]);
+  });
+
+  it('throws on a delta before its header, and on arguments before a name', () => {
+    const index = new EventIndex();
+    expect(() => index.add({ type: 'model.message.delta', id: 'm9', threadId: 'th', content: 'x' })).toThrow('before its model.message');
+    index.add(header());
+    expect(() =>
+      index.add({ type: 'model.message.delta', id: 'm1', threadId: 'th', toolCalls: [{ index: 0, function: { arguments: '{' } }] }),
+    ).toThrow('before its name');
   });
 });
