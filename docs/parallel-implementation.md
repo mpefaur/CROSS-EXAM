@@ -1,9 +1,9 @@
 # Parallel implementation plan
 
 Companion to [specs/001-cross-exam-evaluator/tasks.md](../specs/001-cross-exam-evaluator/tasks.md).
-`tasks.md` stays the source of truth for **what** each task is; this file is the source of
-truth for **what may run at the same time**, and it corrects four dependencies `tasks.md`
-states incorrectly or omits.
+`tasks.md` stays the source of truth for **what** each task is and what it depends on; this
+file is the source of truth for **what may run at the same time** — the wave plan, the lane
+assignments, and the shared files that `[P]` does not protect.
 
 Read this before `/speckit.implement`. It does not change scope, and it does not waive the
 per-task branch/PR/Qodo discipline of [AGENTS.md](../AGENTS.md) §7.
@@ -17,28 +17,32 @@ out on its own. Parallelism here means one of two things:
   §7.3), each running their own `/speckit.implement` scoped to their lane, or
 - **One person, several git worktrees**, one branch and one agent session per lane.
 
-If you run a single sequential session, §1 (the corrected dependencies) and §3 (the hot
-files) still matter — they prevent a mid-phase block and the rework that follows. §2 buys
-you nothing until there is a second lane.
+If you run a single sequential session, §3 (the hot files) still matters — it prevents the
+rework that follows a mid-phase collision. §2 buys you nothing until there is a second lane.
 
 **The real throughput ceiling is not code.** One task = one branch = one PR = one Qodo
 review. Four open lanes means four concurrent Qodo reviews to read and reply to before
 anything merges. Against the 14:30 PDT cutline, **2–3 lanes is the honest maximum**.
 
-## 1. Corrections to the dependency graph in `tasks.md`
+## 1. Four dependency facts, and where they come from
 
-| # | `tasks.md` says | Actually | Consequence |
+These four are **applied in `tasks.md`** — on the task lines, in the Phase 2 warning block,
+and in its § Dependencies. They are repeated here with their sources, because they are what
+makes the wave plan in §2 legal rather than optimistic.
+
+| # | Fact | Source | Consequence |
 |---|---|---|---|
-| C-1 | T007 is `[P]`, parallel with T008 after T006 | **T009 depends on T007.** [contracts/wire-grammar.md](../specs/001-cross-exam-evaluator/contracts/wire-grammar.md) types `decodeProposal(text): DecodeResult<ProposedAction>` and the encoder takes a `Verdict` — both live in `case.ts` (T007) | T007 is on the critical path, not a side branch. If it slips, the grammar and both builders slip with it |
-| C-2 | T014 sits in Phase 3 | **T014 has zero TypeScript dependencies.** `measure.py` is stdlib Python written against the predicate grammar of [data-model.md](../specs/001-cross-exam-evaluator/data-model.md) §5 and the registry in [emoji-grammar.md](./emoji-grammar.md) | It can start at t=0, alongside Phase 1. Largest single scheduling win |
-| C-3 | T018 sits in Phase 3 | **`decide()` needs only T007 + T008.** No grammar, no measurement code, no fixtures | The verdict lane opens during the Phase 2 window |
-| C-4 | "No user story work begins until T009 **and T013** are merged" | **T013 gates only the fixture readers** — T015's real run, T016, T021, T030. T014, T018, T020, T022–T024, T027, T028 never open a ledger | The Phase 2 → Phase 3 gate is narrower than written; four lanes can open on T009 alone |
+| **C-1** | **T009 depends on T007.** `decodeProposal(text): DecodeResult<ProposedAction>`, and the encoder takes a `Verdict` — both types live in `case.ts` (T007) | [contracts/wire-grammar.md](../specs/001-cross-exam-evaluator/contracts/wire-grammar.md) | T007 is on the **critical path**, not the side branch its bare `[P]` once implied. If T007 slips, the grammar and both builders slip with it |
+| **C-2** | **T014 has zero TypeScript dependencies.** `measure.py` is stdlib Python written against the predicate grammar and the emoji registry, not against any code in this repo | [data-model.md](../specs/001-cross-exam-evaluator/data-model.md) §5 · [emoji-grammar.md](./emoji-grammar.md) | Startable at t=0, alongside Phase 1. Largest single scheduling win |
+| **C-3** | **`decide()` (T018) needs only T007 + T008.** No grammar, no measurement code, no fixtures — the five rules *read* a `Measurement`, they never produce one | [research.md](../specs/001-cross-exam-evaluator/research.md) D-06 | The verdict lane opens during the Phase 2 window |
+| **C-4** | **T013 gates only the ledger readers** — T015's real run, T016, T021, T030. T014, T018, T020 and T022–T028 never open a ledger | [data-model.md](../specs/001-cross-exam-evaluator/data-model.md) §1–§3 | The Phase 2 → Phase 3 gate is narrower than "no user story work begins". Four lanes open on T009 alone |
 
-C-1 is the one that bites. The others only cost you idle time.
+C-1 is the one that bites — it moves a task onto the critical path. The other three only cost
+idle time if ignored.
 
-The T009 gate itself is **not** negotiable and is correctly stated in `tasks.md`: the grammar
-is the contract between the two agents, and changing it after either builder has branched
-breaks both sides at once.
+**The T009 gate itself does not move.** The grammar is the contract between the two agents;
+changing it after either builder has branched breaks both sides at once. C-4 narrows the
+*fixture* gate, never the grammar gate.
 
 ## 2. Execution waves
 

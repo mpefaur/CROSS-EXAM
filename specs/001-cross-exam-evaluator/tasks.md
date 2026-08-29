@@ -68,12 +68,21 @@ which do not yet exist.
 **Purpose**: The shared surface both builders compile against, plus the seeded data every
 measurement depends on.
 
-**⚠️ CRITICAL**: No user story work begins until T009 (grammar) and T013 (fixtures) are merged.
-The grammar is the contract *between the two agents*; a change to it after either builder
-branches breaks both sides at once ([docs/emoji-grammar.md](../../docs/emoji-grammar.md) § Maintenance).
+**⚠️ CRITICAL — T009 is the hard gate.** No task that *encodes or decodes the wire format*
+begins until T009 (grammar) is merged. The grammar is the contract *between the two agents*;
+a change to it after either builder branches breaks both sides at once
+([docs/emoji-grammar.md](../../docs/emoji-grammar.md) § Maintenance).
+
+**T013 (fixtures) is a narrower gate**: it blocks only the tasks that *open a ledger* —
+T015's real run, T016, T021, T030. It does not block T014, T018, T020, T022–T028.
+
+**Three Phase 3 tasks do not wait for this phase at all** and should be started early rather
+than held: **T014** (`measure.py` is stdlib Python — no TypeScript dependency, startable at
+t=0 alongside Phase 1), **T018** (`decide()` needs only T007 + T008), and **T022** (agent
+creation needs only T008). See [docs/parallel-implementation.md](../../docs/parallel-implementation.md) §2.
 
 - [ ] T006 Create the ledger entity types — `Charge`, `Payout`, `ReplicaLedger`/`ProductionLedger` — in `packages/core/src/model/entities.ts` per [data-model.md](./data-model.md) §1–§3, money as integer cents only; create the barrel `packages/core/src/index.ts` re-exporting the model (later tasks append their own export line)
-- [ ] T007 [P] Create the case types — `ProposedAction`, `GuardrailReport`, `ChargeSheet`, `Measurement`, `Verdict` — in `packages/core/src/model/case.ts` per [data-model.md](./data-model.md) §4, §6–§9, typing the Constitution II invariant so `verdict !== 'escalate'` forces `evidence !== null` at compile time
+- [ ] T007 **[critical path — T009 depends on it]** Create the case types — `ProposedAction`, `GuardrailReport`, `ChargeSheet`, `Measurement`, `Verdict` — in `packages/core/src/model/case.ts` per [data-model.md](./data-model.md) §4, §6–§9, typing the Constitution II invariant so `verdict !== 'escalate'` forces `evidence !== null` at compile time. `[P]` with T008 only — this is **not** a side branch: [contracts/wire-grammar.md](./contracts/wire-grammar.md) types `decodeProposal(text): DecodeResult<ProposedAction>` and the encoder takes a `Verdict`, so T009 cannot start until this lands
 - [ ] T008 [P] Create the environment config loader in `packages/core/src/model/config.ts` reading every variable of [data-model.md](./data-model.md) §12 with its documented default; it must never print, log, or echo a credential value, not even truncated (FR-023, SC-010)
 - [ ] T009 Implement the emoji grammar encoder and decoder in `packages/core/src/grammar/index.ts` against the registry in [docs/emoji-grammar.md](../../docs/emoji-grammar.md), honouring every obligation in [contracts/wire-grammar.md](./contracts/wire-grammar.md): strict single-pass decode, unknown/absent/repeated key is a terminal parse failure, `💵`/`💰` parsed `#.##` → integer cents, encoder throws on a value containing `\n`, and `⚖allow`/`⚖deny` cannot be encoded without `🧮`+`💰`+`♻` (FR-024, FR-025)
 - [ ] T010 Write the grammar unit suite in `packages/core/tests/grammar.test.ts`: `decodeProposal(encodeProposal(p))` deep-equals `p` for every fixture proposal, plus one asserting-`ok:false` case per malformed class — unregistered key, keyless line, repeated key, missing `🔢`, missing `💵`, non-`#.##` money, embedded newline ([D-12](./research.md))
@@ -98,14 +107,14 @@ and the action executes ([quickstart.md](./quickstart.md) Scenario 1).
 
 ### Measurement — the only thing that may produce a number (owner A)
 
-- [ ] T014 [P] [US1] Write the one measurement script `packages/core/scripts/measure.py` — Python 3, **stdlib only** — implementing the predicate grammar of [data-model.md](./data-model.md) §5 (`term (' AND ' term)*`, no `OR`, no parens, no `eval`), counting `🧮`/`💰`/`♻` over the `charges` or `payouts` table, printing the three emoji lines on stdout and nothing else, with exit codes `0`/`2`/`3` per [contracts/measurement-executor.md](./contracts/measurement-executor.md); it never writes, never opens a socket, and never reads a path it was not given (FR-004, FR-005, D-04)
+- [ ] T014 [P] [US1] **(no dependency — start during Phase 1)** Write the one measurement script `packages/core/scripts/measure.py` — Python 3, **stdlib only** — implementing the predicate grammar of [data-model.md](./data-model.md) §5 (`term (' AND ' term)*`, no `OR`, no parens, no `eval`), counting `🧮`/`💰`/`♻` over the `charges` or `payouts` table, printing the three emoji lines on stdout and nothing else, with exit codes `0`/`2`/`3` per [contracts/measurement-executor.md](./contracts/measurement-executor.md); it never writes, never opens a socket, and never reads a path it was not given (FR-004, FR-005, D-04)
 - [ ] T015 [P] [US1] Define the `MeasurementExecutor` interface and implement `LocalExecutor` in `packages/core/src/measure/types.ts` and `packages/core/src/measure/local.ts` — runs the same `measure.py` under `python3` in a temporary directory with no network, decodes its stdout through the Phase 2 grammar, records `script_sha256` of the file that actually ran, and returns `Measurement | null` (FR-004)
 - [ ] T016 [US1] Implement `SandboxExecutor` in `packages/core/src/measure/sandbox.ts` — uploads `measure.py` and `fixtures/replica.json` into the Daytona sandbox once per run, executes, reads stdout, records the same `script_sha256`; returns `null` on any failure rather than throwing (FR-004, Risk R1)
 - [ ] T017 [US1] Implement the resolution order in `packages/core/src/measure/index.ts`: sandbox first with a fresh `AbortSignal` at `CROSSEXAM_MEASUREMENT_TIMEOUT_MS`, then local with its **own** fresh signal, then `null` — no third attempt, no retry loop, and no single attempt over 20 s (FR-010, SC-011)
 
 ### The verdict — the one place a decision is produced (owner A)
 
-- [ ] T018 [P] [US1] Implement `decide(proposal, measurement, config): Verdict` in `packages/core/src/verdict/decide.ts` as the five ordered rules of [research.md](./research.md) [D-06](./research.md), recording which rule fired on `Verdict.rule`; there is no sixth branch and no "inconclusive" branch (FR-008…FR-011)
+- [ ] T018 [P] [US1] **(needs only T007 + T008 — start during the Phase 2 window)** Implement `decide(proposal, measurement, config): Verdict` in `packages/core/src/verdict/decide.ts` as the five ordered rules of [research.md](./research.md) [D-06](./research.md), recording which rule fired on `Verdict.rule`; there is no sixth branch and no "inconclusive" branch (FR-008…FR-011)
 - [ ] T019 [US1] Write the verdict unit suite in `packages/core/tests/verdict.test.ts` covering each rule and — critically — their **ordering**: a proposal that both exceeds the threshold and mismatches its declaration returns `escalate` (rule 3), not `deny`; and no input produces `allow`/`deny` with `evidence === null` (FR-009, SC-003, Constitution II)
 
 ### The irreversible actions (owner B)
@@ -230,7 +239,7 @@ earlier verdict with its cited evidence.
 ### Phase Dependencies
 
 - **Phase 1 (Setup)** — no dependencies, starts immediately
-- **Phase 2 (Foundational)** — depends on Phase 1; **blocks every user story**. T009 (grammar) and T013 (fixtures) are the hard gate: the grammar is the two-agent contract and a change to it after either builder branches breaks both sides at once
+- **Phase 2 (Foundational)** — depends on Phase 1; blocks every user story task **that touches the wire format or reads a ledger**. T009 (grammar) is the hard gate — the two-agent contract, and a change to it after either builder branches breaks both sides at once. T013 (fixtures) gates only the ledger readers (T015 run, T016, T021, T030). T014, T018 and T022 are gated by neither
 - **Phase 3 (US1, P1)** — depends on Phase 2. **The 14:30 PDT cutline.**
 - **Phase 4 (US3, P2)** — depends on Phase 3 (reuses `decide()` rules 1–3 and the resolver)
 - **Phase 5 (US2, P2)** — depends on Phase 3 (extends the MCP handler and the charge sheet)
@@ -249,20 +258,22 @@ earlier verdict with its cited evidence.
 
 ### Within Each User Story
 
-- The measurement script (T014) precedes both executors; both executors precede the resolution order (T017)
+- The case types (T007) precede the grammar (T009) — `decodeProposal` returns `DecodeResult<ProposedAction>` and the encoder takes a `Verdict` ([contracts/wire-grammar.md](./contracts/wire-grammar.md))
+- The measurement script (T014) precedes both executors; both executors precede the resolution order (T017). T014 itself depends on nothing and is written against [data-model.md](./data-model.md) §5, not against any TypeScript in this repo
 - `decide()` (T018) precedes its unit suite (T019) and the resolver (T029)
 - The correlation (T025) precedes the charge sheet (T026), which precedes the demo wiring (T030)
 - Every phase ends with a task that **runs a real command and reads its output** — T032, T036, T039, T041, T043, T045, T050
 
 ### Parallel Opportunities
 
-> Full wave plan, lane assignments, and the multi-writer files that `[P]` does not
-> cover: [docs/parallel-implementation.md](../../docs/parallel-implementation.md).
-> Read it before `/speckit.implement` — it corrects four dependencies stated below.
+> The bullets below say *which tasks* may overlap. For the **wave plan**, the standing
+> lane assignments, and the multi-writer files that `[P]` does not protect, see
+> [docs/parallel-implementation.md](../../docs/parallel-implementation.md) — read it before
+> `/speckit.implement`.
 
 - **Phase 1**: T003, T004, T005 in parallel after T002
-- **Phase 2**: T007 and T008 in parallel with each other after T006; T011 in parallel with T009 (different owners, different directories)
-- **Phase 3**: the three tracks run in parallel once Phase 2 is merged — A on measurement (T014, T015) and the verdict (T018), B on the MCP server (T020), A on the orchestrator (T022). T027 and T028 (the two prompts) are independent files
+- **Phase 2**: T007 and T008 in parallel with each other after T006, but T007 is the critical path — T009 waits on it. T011 (and T008, and T018) run in parallel with the T007 → T009 chain (different owners, different directories)
+- **Phase 3**: T014 and T018 open before Phase 2 closes (see that phase's ⚠️ note); the remaining tracks run in parallel once T009 is merged — A on measurement (T014, T015) and the verdict (T018), B on the MCP server (T020), A on the orchestrator (T022). T027 and T028 (the two prompts) are independent files
 - **Phase 9**: T046 and T047 in parallel
 
 ---
