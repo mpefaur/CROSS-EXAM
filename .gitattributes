@@ -1,0 +1,4 @@
+# The seeded ledger fixtures are byte-compared against their committed blobs
+# (T013, FR-006/SC-002). `pnpm seed` writes LF, so pin them to LF and keep
+# core.autocrlf from rewriting them on checkout.
+fixtures/*.json text eol=lf
