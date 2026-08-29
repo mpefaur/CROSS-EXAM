@@ -103,7 +103,18 @@ export class LocalExecutor implements MeasurementExecutor {
     } catch {
       return null;
     } finally {
-      if (dir !== undefined) await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+      if (dir !== undefined) {
+        const working = dir;
+        // A measurement that was produced still stands: a directory that will not delete is
+        // an operational anomaly, not a reason to discard a figure the script really
+        // computed. It is not swallowed either — `run` may not reject, so the failure is
+        // reported on stderr, naming the path and nothing else.
+        await rm(working, { recursive: true, force: true }).catch((error: unknown) => {
+          console.warn(
+            `measure: could not remove the working directory ${working}: ${String(error)}`,
+          );
+        });
+      }
     }
   }
 }

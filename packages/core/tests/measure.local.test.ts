@@ -110,17 +110,25 @@ describe('LocalExecutor', () => {
 
   /**
    * The setup steps — reading `measure.py`, making the working directory — are failures to
-   * measure like any other. An unusable `TMPDIR` makes `mkdtemp` fail for real, without
-   * mocking a builtin.
+   * measure like any other. An unusable temp directory makes `mkdtemp` fail for real,
+   * without mocking a builtin.
+   *
+   * `os.tmpdir()` reads a different variable per platform — `TMPDIR`/`TMP`/`TEMP` on POSIX,
+   * `TEMP`/`TMP` on Windows — so all three are redirected and the test asserts the same
+   * thing everywhere instead of quietly passing on the platform it was written on.
    */
   it('returns null instead of rejecting when the temporary directory cannot be made', async () => {
-    const previous = process.env.TMPDIR;
-    process.env.TMPDIR = resolve(tmpdir(), 'crossexam-no-such-directory');
+    const vars = ['TMPDIR', 'TMP', 'TEMP'] as const;
+    const previous = vars.map((name) => [name, process.env[name]] as const);
+    const unusable = resolve(tmpdir(), 'crossexam-no-such-directory');
+    for (const name of vars) process.env[name] = unusable;
     try {
       await expect(measure('charges', 'status=disputed')).resolves.toBeNull();
     } finally {
-      if (previous === undefined) delete process.env.TMPDIR;
-      else process.env.TMPDIR = previous;
+      for (const [name, value] of previous) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
     }
   });
 
