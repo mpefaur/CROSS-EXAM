@@ -23,8 +23,9 @@
  */
 
 import { readFileSync } from 'node:fs';
+import type { Server as HttpServer } from 'node:http';
 import { dirname, isAbsolute, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { decide, decodeProposal, decodeVerdict, loadConfig } from '@crossexam/core';
 import type { Config, ProposedAction } from '@crossexam/core';
 import { checkGuardrails, startActionServer } from '@crossexam/mcp';
@@ -41,6 +42,7 @@ import { CaseTable, resolveCase, type Bench, type HeldAction } from './sessions/
 import { consumeTurn, EventIndex, type TurnRecord } from './sessions/stream.ts';
 import {
   executionLine,
+  type ExecutionOutcome,
   measurementLine,
   measuringLine,
   noMeasurementLine,
@@ -85,24 +87,55 @@ function replicaIdentity(config: Config): { seed: string; as_of: string; path: s
  * The execution report the action server put on the tool result after the `allow`.
  *
  * Read, never computed: the count and the total are the production ledger's own, accumulated
- * from the rows it changed (T030a). A result the Bench cannot read is reported as such
- * rather than filled in from the proposal.
+ * from the rows it changed (T030a).
+ *
+ * Two shapes arrive here, because the harness rewrites a failed tool result: a success is the
+ * server's `structuredContent` verbatim, while `isError: true` becomes
+ * `{error: <the MCP content array>}` (`executeToolCalls.mjs:107-111`). Neither is trusted —
+ * a response this cannot read becomes an unreadable-result refusal rather than an execution
+ * of zero rows, which would be a figure nobody computed.
  */
-function readExecution(index: EventIndex, toolCallId: string): Parameters<typeof executionLine>[0] {
+export function readExecution(index: EventIndex, toolCallId: string): ExecutionOutcome {
+  const unreadable = { executed: false as const, reason: 'the action server reported no execution result' };
+
   for (let i = index.events.length - 1; i >= 0; i--) {
     const event = index.events[i];
     if (event?.type !== 'tool.response' || event.toolCallId !== toolCallId) continue;
+
+    let parsed: unknown;
     try {
-      const parsed: unknown = JSON.parse(event.content);
-      if (typeof parsed === 'object' && parsed !== null) {
-        return parsed as Parameters<typeof executionLine>[0];
-      }
+      parsed = JSON.parse(event.content);
     } catch {
-      break;
+      return unreadable;
     }
-    break;
+    if (typeof parsed !== 'object' || parsed === null) return unreadable;
+    const fields = parsed as Record<string, unknown>;
+
+    // The refusal path: the server said why, and that reason is what the run must show.
+    const reason = errorText(fields['error']);
+    if (reason !== null) return { executed: false, reason };
+
+    if (fields['executed'] !== true) return unreadable;
+    const { action, count, value_cents: value } = fields;
+    if (action !== 'bulk_refund' && action !== 'issue_payout' && action !== 'close_account') return unreadable;
+    if (!Number.isInteger(count) || !Number.isInteger(value)) return unreadable;
+    return { executed: true, action, count: count as number, value_cents: value as number };
   }
-  return { executed: false, reason: 'the action server reported no execution result' };
+  return unreadable;
+}
+
+/** The text of an MCP content array the harness wrapped as `{error: …}`, when that is what this is. */
+function errorText(error: unknown): string | null {
+  if (typeof error === 'string') return error;
+  if (!Array.isArray(error)) return null;
+  const text = error
+    .flatMap((part) =>
+      typeof part === 'object' && part !== null && (part as { type?: unknown }).type === 'text'
+        ? [String((part as { text: unknown }).text)]
+        : [],
+    )
+    .join('\n');
+  return text === '' ? null : text;
 }
 
 async function openSession(client: TrueForge, agentName: string): Promise<string> {
@@ -257,26 +290,32 @@ async function main(): Promise<void> {
     return;
   }
 
-  const actionServer = await startActionServer(config.action_server_url);
-  const measureServer = await startMeasureServer(config.measure_server_url, {
-    ledgerPath: replicaPath(config),
-    timeoutMs: config.measurement_timeout_ms,
-  });
-
+  // Every server that actually started is closed, including when the *next* one fails to
+  // bind: starting them outside the `try` would leak the first on the second's rejection.
+  const started: HttpServer[] = [];
   try {
+    started.push(await startActionServer(config.action_server_url));
+    started.push(
+      await startMeasureServer(config.measure_server_url, {
+        ledgerPath: replicaPath(config),
+        timeoutMs: config.measurement_timeout_ms,
+      }),
+    );
     await run(config);
   } finally {
-    await new Promise((done) => {
-      actionServer.close(() => {
-        done(undefined);
+    for (const server of started) {
+      await new Promise((done) => {
+        server.close(() => {
+          done(undefined);
+        });
       });
-    });
-    await new Promise((done) => {
-      measureServer.close(() => {
-        done(undefined);
-      });
-    });
+    }
   }
 }
 
-void main();
+// Imported (its argument parser is unit-tested), this module is only its surface; run
+// directly by `pnpm demo`, it is the demo. Same guard as the two server entrypoints.
+const entrypoint = process.argv[1];
+if (entrypoint !== undefined && import.meta.url === pathToFileURL(entrypoint).href) {
+  await main();
+}
