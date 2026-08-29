@@ -56,7 +56,7 @@ which do not yet exist.
 - [x] T001 Create the pnpm workspace root: `pnpm-workspace.yaml` listing `packages/*` and `apps/*`; root `package.json` (ESM, `"type": "module"`, `packageManager: pnpm@11.4.0`) with the scripts `demo`, `test`, `lint`, `build`, `seed`; `.gitignore` covering `.env*`, `node_modules/`, `.crossexam/`; `.nvmrc` pinning Node 22.14
 - [x] T002 Create the three package manifests — `packages/core/package.json`, `packages/mcp/package.json`, `apps/bench/package.json` — each with `"exports": "./src/index.ts"` (source export, no emit) and the exact pins of research [D-02](./research.md): `@truefoundry/trueforge` 0.1.4, `@truefoundry/trueforge-sdk` 0.1.3, `@modelcontextprotocol/sdk` 1.30.0, `zod` 4.5.2, `tsx` 4.23.12, `vitest` 4.1.11, `typescript` 5.9.3 — no caret ranges anywhere (Risk R9)
 - [x] T003 [P] Create `tsconfig.base.json` at the repo root and a `tsconfig.json` in each of the three packages; wire `pnpm build` to a workspace-wide `tsc --noEmit` so it fails on a real type error ([D-01](./research.md))
-- [ ] T004 [P] Configure ESLint in `eslint.config.js` at the repo root and wire `pnpm lint`
+- [x] T004 [P] Configure ESLint in `eslint.config.js` at the repo root and wire `pnpm lint`
 - [ ] T005 [P] Create `.env.example` with the variable **names only** from [data-model.md](./data-model.md) §12 and dummy values — `TRUEFORGE_BASE_URL`, `TARGET_AGENT_NAME`, `EVALUATOR_AGENT_NAME`, `TARGET_MODEL`, `EVALUATOR_MODEL`, `CROSSEXAM_ESCALATION_THRESHOLD_USD`, `CROSSEXAM_MEASUREMENT_TIMEOUT_MS`, `DAYTONA_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` — and confirm `.env` is gitignored (FR-023, Constitution VI)
 
 **Checkpoint**: `pnpm install`, `pnpm build`, and `pnpm lint` all run and their output was read.
