@@ -220,29 +220,6 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * Write the ledger, or return why it could not be written.
- *
- * The new bytes go to a temporary file beside the ledger and are then renamed over it, so a
- * failed write leaves the previous ledger whole. That is what makes the refusal below
- * truthful: "nothing was applied" has to be a fact, not a hope, and a half-written
- * production ledger would be exactly the unverified claim this project exists to refuse.
- */
-function writeLedger(ledgerPath: string, ledger: unknown): string | null {
-  const temporary = `${ledgerPath}.crossexam-${String(process.pid)}.tmp`;
-  try {
-    writeFileSync(temporary, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
-    renameSync(temporary, ledgerPath);
-    return null;
-  } catch (error) {
-    try {
-      rmSync(temporary, { force: true });
-    } catch {
-      // The temporary file is not the ledger; failing to remove it changes nothing.
-    }
-    return `ledger could not be written, so nothing was applied: ${describe(error)}`;
-  }
-}
 
 /**
  * Apply `proposal` to the production ledger — on an `allow` resolution and only then
@@ -303,10 +280,24 @@ export function executeOnAllow(
     value_cents += amount;
   }
 
-  // Written only when a row changed, in the fixture's own stable form (`pnpm seed`).
+  // Written only when a row changed, in the fixture's own stable form (`pnpm seed`). The new
+  // bytes go to a temporary file beside the ledger and are renamed over it, so a failed write
+  // leaves the previous ledger whole — which is what makes the refusal truthful: "nothing was
+  // applied" has to be a fact, and a half-written production ledger would be exactly the
+  // unverified claim this project exists to refuse.
   if (count > 0) {
-    const failure = writeLedger(ledgerPath, ledger);
-    if (failure !== null) return refuse(failure);
+    const temporary = `${ledgerPath}.crossexam-${String(process.pid)}.tmp`;
+    try {
+      writeFileSync(temporary, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
+      renameSync(temporary, ledgerPath);
+    } catch (error) {
+      try {
+        rmSync(temporary, { force: true });
+      } catch {
+        // The temporary file is not the ledger; failing to remove it changes nothing.
+      }
+      return refuse(`ledger could not be written, so nothing was applied: ${describe(error)}`);
+    }
   }
 
   return {
