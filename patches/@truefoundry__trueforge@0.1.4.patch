@@ -1,14 +1,19 @@
 diff --git a/dist/grammarToolCallLLM.d.ts b/dist/grammarToolCallLLM.d.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..4ae582b4ace815675cedff398b9491864378fecc
+index 0000000000000000000000000000000000000000..a0567968a0540fb56be6a7d2f9800058e9b4d06f
 --- /dev/null
 +++ b/dist/grammarToolCallLLM.d.ts
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,23 @@
 +import type { ILLM } from "@truefoundry/trueforge-core/core";
 +
++export interface GrammarTool {
++  name: string;
++  args: string[];
++}
 +export interface GrammarRegistry {
-+  tools: Set<string>;
-+  keys: Map<string, string>;
++  /** emoji → tool, argument names in field order */
++  tools: Map<string, GrammarTool>;
++  names: Set<string>;
 +}
 +export declare function loadGrammarRegistry(raw?: string | undefined): GrammarRegistry | null;
 +export declare function describeGrammarRegistry(registry: GrammarRegistry | null): string;
@@ -24,19 +29,21 @@ index 0000000000000000000000000000000000000000..4ae582b4ace815675cedff398b949186
 +}
 diff --git a/dist/grammarToolCallLLM.js b/dist/grammarToolCallLLM.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..9c1a8d53e5c9d7fa25334f179a70a2885d8e66d7
+index 0000000000000000000000000000000000000000..2288e3c6804b09cedd5be0527838eac3567b253c
 --- /dev/null
 +++ b/dist/grammarToolCallLLM.js
-@@ -0,0 +1,142 @@
-+// CROSS-EXAM patch (research D-14): a registry-driven emoji-lines-to-tool-call adapter
+@@ -0,0 +1,138 @@
++// CROSS-EXAM patch (research D-14): a registry-driven emoji-line-to-tool-call adapter
 +// around the harness's ILLM. Read once at start from CROSSEXAM_GRAMMAR_REGISTRY:
 +//
-+//   {"$tools":["bulk_refund",...], "🧾":"$tool", "🔍":"criteria", ...}
++//   {"🧾":["bulk_refund","criteria","declared_count","declared_value"], "📏":["measure","criteria","table"], ...}
 +//
-+// In: tool schemas named in $tools never reach the model; prior grammar tool_calls are
++// One emoji per tool. A line is `<emoji><field> | <field> | ...`; fields map onto the
++// registered argument names by position, as raw strings.
++// In: tool schemas of registered tools never reach the model; prior grammar tool_calls are
 +// dropped from history and their role:tool results become role:user text.
-+// Out: on the final message, lines whose first codepoint is a registered key become
-+// one synthesised tool_call; content is left as the model wrote it.
++// Out: on the final message, the first line whose first codepoint is a registered emoji
++// becomes one synthesised tool_call; content is left as the model wrote it.
 +// No product knowledge lives here — no guardrail, rule, or measurement.
 +import { randomUUID } from "crypto";
 +
@@ -54,34 +61,30 @@ index 0000000000000000000000000000000000000000..9c1a8d53e5c9d7fa25334f179a70a288
 +  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
 +    throw new Error("CROSSEXAM_GRAMMAR_REGISTRY must be a JSON object");
 +  }
-+  if (!Array.isArray(parsed.$tools)) {
-+    throw new Error('CROSSEXAM_GRAMMAR_REGISTRY: "$tools" must be an array of tool names');
-+  }
-+  const keys = new Map();
-+  let toolKey = null;
-+  for (const [key, field] of Object.entries(parsed)) {
-+    if (key === "$tools") {
-+      continue;
-+    }
++  const tools = new Map();
++  const names = new Set();
++  for (const [key, entry] of Object.entries(parsed)) {
 +    if ([...key].length !== 1) {
 +      throw new Error("CROSSEXAM_GRAMMAR_REGISTRY: every key must be one codepoint");
 +    }
-+    if (field === "$tool") {
-+      toolKey = key;
++    if (!Array.isArray(entry) || entry.length === 0 || !entry.every((s) => typeof s === "string" && s !== "")) {
++      throw new Error("CROSSEXAM_GRAMMAR_REGISTRY: every entry must be [tool_name, ...argument_names]");
 +    }
-+    keys.set(key, field);
++    const [name, ...args] = entry;
++    tools.set(key, { name, args });
++    names.add(name);
 +  }
-+  if (toolKey === null) {
-+    throw new Error('CROSSEXAM_GRAMMAR_REGISTRY: no key is mapped to "$tool"');
++  if (tools.size === 0) {
++    throw new Error("CROSSEXAM_GRAMMAR_REGISTRY: no tool key");
 +  }
-+  return { tools: new Set(parsed.$tools), keys };
++  return { tools, names };
 +}
 +
 +export function describeGrammarRegistry(registry) {
 +  if (registry === null) {
 +    return "Grammar tool-call adapter: inert (CROSSEXAM_GRAMMAR_REGISTRY unset)";
 +  }
-+  return `Grammar tool-call adapter: ${String(registry.keys.size)} keys, $tools=[${[...registry.tools].join(", ")}]`;
++  return `Grammar tool-call adapter: ${String(registry.tools.size)} keys, tools=[${[...registry.names].join(", ")}]`;
 +}
 +
 +export function stripGrammarFromRequest(body, registry) {
@@ -91,7 +94,7 @@ index 0000000000000000000000000000000000000000..9c1a8d53e5c9d7fa25334f179a70a288
 +      return msg;
 +    }
 +    const kept = msg.tool_calls.filter((call) => {
-+      const isGrammar = registry.tools.has(call.function.name);
++      const isGrammar = registry.names.has(call.function.name);
 +      if (isGrammar) {
 +        grammarCallIds.add(call.id);
 +      }
@@ -106,7 +109,7 @@ index 0000000000000000000000000000000000000000..9c1a8d53e5c9d7fa25334f179a70a288
 +  const messages = withoutCalls.map(
 +    (msg) => msg.role === "tool" && grammarCallIds.has(msg.tool_call_id) ? { role: "user", content: msg.content } : msg
 +  );
-+  const tools = body.tools?.filter((tool) => !(tool.type === "function" && registry.tools.has(tool.function.name)));
++  const tools = body.tools?.filter((tool) => !(tool.type === "function" && registry.names.has(tool.function.name)));
 +  const { tools: _all, ...rest } = body;
 +  return tools?.length ? { ...rest, messages, tools } : { ...rest, messages };
 +}
@@ -122,32 +125,30 @@ index 0000000000000000000000000000000000000000..9c1a8d53e5c9d7fa25334f179a70a288
 +  if (output.tool_calls?.length) {
 +    return null;
 +  }
-+  let name = null;
-+  const args = {};
 +  for (const line of contentText(output.content).split("\n")) {
 +    const [key] = line;
-+    const field = key === undefined ? undefined : registry.keys.get(key);
-+    if (field === undefined) {
++    const tool = key === undefined ? undefined : registry.tools.get(key);
++    if (tool === undefined) {
 +      continue;
 +    }
-+    let value = line.slice(key.length);
-+    if (value.startsWith("\uFE0F")) {
-+      value = value.slice(1);
++    let rest = line.slice(key.length);
++    if (rest.startsWith("\uFE0F")) {
++      rest = rest.slice(1);
 +    }
-+    if (field === "$tool") {
-+      name = value;
-+    } else {
-+      args[field] = value;
-+    }
++    const fields = rest.trim() === "" ? [] : rest.split("|").map((f) => f.trim());
++    const args = {};
++    tool.args.forEach((name, i) => {
++      if (fields[i] !== undefined) {
++        args[name] = fields[i];
++      }
++    });
++    return {
++      id: `call_${randomUUID().replaceAll("-", "")}`,
++      type: "function",
++      function: { name: tool.name, arguments: JSON.stringify(args) }
++    };
 +  }
-+  if (name === null) {
-+    return null;
-+  }
-+  return {
-+    id: `call_${randomUUID().replaceAll("-", "")}`,
-+    type: "function",
-+    function: { name, arguments: JSON.stringify(args) }
-+  };
++  return null;
 +}
 +
 +export class GrammarToolCallLLM {

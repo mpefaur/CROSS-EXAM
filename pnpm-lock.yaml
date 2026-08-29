@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@truefoundry/trueforge@0.1.4': ac6ce06a50fcdac8006cbf4f30dd6a9e4aa956bee3a4ca0ca565a5ac7ac7c2b1
+  '@truefoundry/trueforge@0.1.4': 2c1201882c37d9bc4073eb1988dba6b601071b8f901697655cb74825b6572292
 
 importers:
 
@@ -41,7 +41,7 @@ importers:
     devDependencies:
       '@truefoundry/trueforge':
         specifier: 0.1.4
-        version: 0.1.4(patch_hash=ac6ce06a50fcdac8006cbf4f30dd6a9e4aa956bee3a4ca0ca565a5ac7ac7c2b1)(@aws-sdk/credential-provider-node@3.972.81)(@opentelemetry/api@1.9.1)(@smithy/signature-v4@5.7.3)(undici@7.29.0)
+        version: 0.1.4(patch_hash=2c1201882c37d9bc4073eb1988dba6b601071b8f901697655cb74825b6572292)(@aws-sdk/credential-provider-node@3.972.81)(@opentelemetry/api@1.9.1)(@smithy/signature-v4@5.7.3)(undici@7.29.0)
       '@types/node':
         specifier: 26.4.0
         version: 26.4.0
@@ -3399,7 +3399,7 @@ snapshots:
 
   '@truefoundry/trueforge-sdk@0.1.3': {}
 
-  '@truefoundry/trueforge@0.1.4(patch_hash=ac6ce06a50fcdac8006cbf4f30dd6a9e4aa956bee3a4ca0ca565a5ac7ac7c2b1)(@aws-sdk/credential-provider-node@3.972.81)(@opentelemetry/api@1.9.1)(@smithy/signature-v4@5.7.3)(undici@7.29.0)':
+  '@truefoundry/trueforge@0.1.4(patch_hash=2c1201882c37d9bc4073eb1988dba6b601071b8f901697655cb74825b6572292)(@aws-sdk/credential-provider-node@3.972.81)(@opentelemetry/api@1.9.1)(@smithy/signature-v4@5.7.3)(undici@7.29.0)':
     dependencies:
       '@anthropic-ai/sandbox-runtime': 0.0.71
       '@daytona/sdk': 0.204.1
