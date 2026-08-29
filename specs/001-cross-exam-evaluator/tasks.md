@@ -226,7 +226,7 @@ earlier verdict with its cited evidence.
 
 > **Built only if Phases 6 and 7 are already done before the 16:00 PDT freeze** (spec, US6).
 
-- [ ] T044 [US6] Implement the append-only docket in `packages/core/src/docket/index.ts` — write a `DocketEntry` per [data-model.md](./data-model.md) §11 as one JSON line to `.crossexam/docket.jsonl`, and query by `action` (FR-021)
+- [x] T044 [US6] Implement the append-only docket in `packages/core/src/docket/index.ts` — write a `DocketEntry` per [data-model.md](./data-model.md) §11 as one JSON line to `.crossexam/docket.jsonl`, and query by `action` (FR-021)
 - [ ] T045 [US6] Record every verdict from `apps/bench/src/sessions/resolve.ts`, then run the two-session retrieval check and paste the output showing the earlier verdict and its cited evidence returned in a new session (US6-1)
 
 ---
