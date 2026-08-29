@@ -228,9 +228,10 @@ async function runTurn(
  * pending — there is no auto-approving timeout, ever (data-model §10). A decision on a case
  * already decided is rejected and the standing verdict returned.
  *
- * The case is recorded before the turn is sent, so a race cannot deliver two decisions; if
- * that turn then fails the record is released and the error propagates. Reporting a verdict
- * the harness never received would be a decision with no execution behind it.
+ * The case is recorded before the turn is sent, so a race cannot deliver two decisions. A
+ * failure is then read by phase: refused before the harness took it, the record is released
+ * — the action is still held, and a verdict nobody received is not a decision. Anything
+ * after that leaves the record standing, because the decision may already have run.
  */
 async function applyVerdict(bench: Bench, held: HeldAction, verdict: Verdict): Promise<Verdict> {
   const standing = bench.cases.decide(held.case_id, verdict);
@@ -239,19 +240,30 @@ async function applyVerdict(bench: Bench, held: HeldAction, verdict: Verdict): P
 
   const approval: TrueForgeApi.ApprovalDecision =
     verdict.verdict === 'allow' ? { status: 'allow' } : { status: 'deny', reason: verdict.reason };
-  try {
-    await runTurn(bench, held.target_session_id, [
-      {
-        type: 'user.tool_approval',
-        threadId: held.thread_id,
-        toolCallId: held.approval_id,
-        approval,
-      },
-    ]);
-  } catch (error) {
-    bench.cases.release(held.case_id);
-    throw error;
-  }
+  await bench.queue.run(held.target_session_id, async () => {
+    let stream;
+    try {
+      stream = await bench.client.sessions.createTurnStream(held.target_session_id, {
+        input: [
+          {
+            type: 'user.tool_approval',
+            threadId: held.thread_id,
+            toolCallId: held.approval_id,
+            approval,
+          },
+        ],
+      });
+    } catch (error) {
+      // The harness never took the decision, so the action is still held and the case has
+      // to stay answerable.
+      bench.cases.release(held.case_id);
+      throw error;
+    }
+    // Taken. Whatever fails from here — a dropped stream — the decision may already have
+    // run against production, and a second submission on an irreversible action is the one
+    // thing this guard exists to prevent (data-model §10). The record stands.
+    await consumeTurn(stream, bench.onEvent);
+  });
   return verdict;
 }
 

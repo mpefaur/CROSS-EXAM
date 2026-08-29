@@ -125,10 +125,12 @@ function fakeBench(
   replies: TurnRecord[],
   now = () => 0,
   failures = 0,
+  streamFailures = 0,
 ): Bench & { sent: SentTurn[] } {
   const sent: SentTurn[] = [];
   const queued = [...replies];
   let remainingFailures = failures;
+  let remainingStreamFailures = streamFailures;
   const client = {
     sessions: {
       createTurnStream: async (sessionId: string, request: { input: TrueForgeApi.TurnInputItem[] }) => {
@@ -139,7 +141,11 @@ function fakeBench(
         }
         const next = queued.shift();
         const events = next === undefined ? [done('done')] : [...next.events.events];
+        const dropped = remainingStreamFailures > 0;
+        if (dropped) remainingStreamFailures -= 1;
         return (async function* () {
+          // The request was accepted; the stream dies while it is being read.
+          if (dropped) throw new Error('stream dropped');
           for (const event of events) yield event;
         })();
       },
@@ -374,6 +380,19 @@ describe('resolveCase', () => {
     expect(verdict.verdict).toBe('allow');
     expect(bench.sent).toHaveLength(2);
     expect(bench.sent.every((sent) => sent.sessionId === TARGET_SESSION)).toBe(true);
+  });
+
+  it('keeps the case decided when the stream drops after the harness took the decision', async () => {
+    // The approval was submitted, so the action may already have run. Freeing the case here
+    // would allow a second decision on an irreversible action (data-model §10).
+    const bench = fakeBench([], () => 0, 0, 1);
+    const line = '✅1240 | 96310.00 | 0 | figures match';
+
+    await expect(resolveCase(bench, held, verdictTurn(line))).rejects.toThrow('stream dropped');
+    const again = await resolveCase(bench, held, verdictTurn(line));
+
+    expect(again.verdict).toBe('allow');
+    expect(bench.sent).toHaveLength(1);
   });
 
   it('rejects a second decision on the same case; the first stands', async () => {
