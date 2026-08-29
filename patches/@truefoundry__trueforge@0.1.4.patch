@@ -31,10 +31,10 @@ index 0000000000000000000000000000000000000000..d679ab2d5349d2e2032d3e6b4487e740
 +}
 diff --git a/dist/grammarToolCallLLM.js b/dist/grammarToolCallLLM.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..83b5112756c3cadc91c48c79503698b24f08cb7f
+index 0000000000000000000000000000000000000000..c938912e1d7ed4e4b44f2b9a6e9a9b222fbedd1c
 --- /dev/null
 +++ b/dist/grammarToolCallLLM.js
-@@ -0,0 +1,158 @@
+@@ -0,0 +1,159 @@
 +// CROSS-EXAM patch (research D-14): a registry-driven emoji-line-to-tool-call adapter
 +// around the harness's ILLM. Read once at start from the JSON file named by
 +// CROSSEXAM_GRAMMAR_REGISTRY_PATH; only its `kind: "tool"` entries matter here:
@@ -147,7 +147,8 @@ index 0000000000000000000000000000000000000000..83b5112756c3cadc91c48c79503698b2
 +  if (output.tool_calls?.length) {
 +    return null;
 +  }
-+  for (const line of contentText(output.content).split("\n")) {
++  for (const raw of contentText(output.content).split("\n")) {
++    const line = raw.trim();
 +    const [key] = line;
 +    const tool = key === undefined ? undefined : registry.tools.get(key);
 +    if (tool === undefined) {
