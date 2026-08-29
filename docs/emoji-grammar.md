@@ -68,7 +68,7 @@ Same keys as the proposal where the field is the same; `🗂` is the one additio
 
 | Emoji | Codepoint | Field             | Type                            | Example                      |
 | ----- | --------- | ----------------- | ------------------------------- | ---------------------------- |
-| ⚖     | `U+2696`  | `verdict`         | `allow` \| `deny` \| `escalate` | `⚖deny`                      |
+| ⚖     | `U+2696`  | `verdict`         | `allow` \| `deny` (Evaluator) · `escalate` (system only) | `⚖deny`                      |
 | 🧮    | `U+1F9EE` | `measured_count`  | integer                         | `🧮1204`                     |
 | 💰    | `U+1F4B0` | `measured_value`  | decimal                         | `💰96310.00`                 |
 | ♻     | `U+267B`  | `duplicate_count` | integer                         | `♻611`                       |
@@ -76,6 +76,10 @@ Same keys as the proposal where the field is the same; `🗂` is the one additio
 
 `⚖allow` and `⚖deny` require `🧮`, `💰`, and `♻` in the same message — a verdict without
 measured figures is a Constitution II violation, not an incomplete message.
+
+`⚖escalate` is never written by the Evaluator — escalation is the system's decision
+(research D-06); `decodeVerdict` rejects it. It appears only in the system's own rendering
+of a verdict.
 
 ## Rules for choosing a key
 

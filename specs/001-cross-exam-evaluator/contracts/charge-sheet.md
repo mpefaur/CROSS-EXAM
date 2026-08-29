@@ -67,7 +67,8 @@ and the processor does not reverse them. Narrow the criteria or justify the amou
   (FR-004); only a measurement that *fails* on the right criteria escalates (rule 2b).
 - `⚖allow` and `⚖deny` MUST carry `🧮`, `💰`, `♻` equal to what `measure` returned (FR-009,
   Constitution II); a difference comes back as guidance under rule 4, and the verdict is re-issued.
-- `⚖escalate` carries `📝` and MAY carry the measured triple (rule 3 — threshold exceeded —
+- An `escalate` is the system's, never the Evaluator's (a `⚖escalate` from it is rule-4
+  guidance); it carries `📝` and MAY carry the measured triple (rule 3 — threshold exceeded —
   has a measurement; rules 1 and 2b have none for this proposal; an escalation after exhausted
   guidance carries whatever `observed.result` was — rule 4/5 the proposal's measurement, rule 2a
   possibly one taken on other criteria, or nothing).

@@ -179,7 +179,7 @@ Nothing in it is produced by code.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `verdict` | `'allow' \| 'deny' \| 'escalate'` | the `⚖` line (FR-008) |
+| `verdict` | `'allow' \| 'deny'` | the `⚖` line. `escalate` is not in the Evaluator's grammar — escalation is the system's (research D-06: rules 1/2b/3, or exhausted retries); a `⚖escalate` from the Evaluator is a parse failure and gets rule-4 guidance |
 | `reason` | `string \| null` | the `📝` line |
 | `cited` | `MeasuredTriple \| null` | the `🧮`/`💰`/`♻` lines; required on `allow`/`deny` (registry) |
 

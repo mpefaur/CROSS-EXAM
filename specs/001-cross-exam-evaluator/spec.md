@@ -277,7 +277,8 @@ earlier verdict is retrievable.
   measurement contradicts — is a
   tool-usage mistake, not a data condition: the system MUST return it to the Evaluator with
   the measured figures as guidance and read the re-issued verdict, and MUST NOT execute on
-  it. Guidance is given a configured number of times per held action (default three); the
+  it. The Evaluator does not decide escalation: a `⚖escalate` it writes is a malformed verdict
+  and is returned as guidance like any other. Guidance is given a configured number of times per held action (default three); the
   next incorrect verdict means no valid verdict can be obtained and the action escalates.
 - **FR-012**: A `deny` verdict MUST carry a reason containing the measured figures, and
   that reason MUST be delivered to the acting agent.

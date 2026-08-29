@@ -37,6 +37,9 @@ Obligations:
    maps it to `escalate` (FR-002).
 8. Numbers: `🔢` is a bare non-negative integer. `💵` and `💰` are `#.##` dollars, parsed to
    integer cents. Any other numeric form is a parse failure.
+9. `decodeVerdict` accepts `⚖allow` and `⚖deny` only. `⚖escalate` is a parse failure:
+   escalation is written by the system (`decide()`), never by the Evaluator (data-model §9,
+   research D-06 rule 4).
 
 ## Encoder
 

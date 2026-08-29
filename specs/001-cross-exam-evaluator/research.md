@@ -197,9 +197,11 @@ infrastructure condition and escalates under rule 2b.
    `observed.count` / `.value` / `.duplicates` below for brevity).
 3. `observed.value > escalation_threshold` → **`escalate`**, citing the observed figures
    (FR-011).
-4. The Evaluator's message did not decode as a verdict, or on `⚖allow`/`⚖deny` (or whenever a
-   triple is present) its cited `🧮`/`💰`/`♻` differ from `observed` → **`Guidance`**: the
-   grammar it must use and the figures it actually measured (Constitution II).
+4. The Evaluator's message did not decode as a verdict — including `⚖escalate`, which is not
+   in its grammar: escalation is the system's to write, never the model's — or on
+   `⚖allow`/`⚖deny` (or whenever a triple is present) its cited `🧮`/`💰`/`♻` differ from
+   `observed` → **`Guidance`**: the grammar it must use (`allow` or `deny`) and the figures it
+   actually measured (Constitution II).
 5. The Evaluator wrote `⚖allow` while `observed.count != declared_count`,
    `observed.value != declared_value` (exact, to the cent), or `observed.duplicates > 0` →
    **`Guidance`**: the mismatch, line by line. It approved what its own measurement
@@ -229,6 +231,9 @@ seeded data makes exactness free.
   run; the retry cap and the case wall clock bound it instead.
 - *A percentage tolerance on the declared figures*: speculative configuration with one
   possible value (Constitution VIII).
+- *The Evaluator may write `⚖escalate`*: a model-authored escalation bypasses every trigger in
+  FR-011 and parks the action on a person for no data reason. Rejected — `decodeVerdict` does
+  not accept it; the type cannot express it.
 
 ### D-07 — The escalation threshold value, and the constraint the spec left implicit
 
