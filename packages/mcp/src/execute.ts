@@ -4,15 +4,17 @@
  *
  * Three invariants, each a Constitution II concern rather than a style preference:
  *
- * 1. **Only on `allow`.** `executeOnAllow` takes the system's own `Verdict`, not a boolean a
- *    caller can get wrong. On `deny` and on an unanswered `escalate` it writes nothing.
+ * 1. **Only on `allow`.** Enforced by the harness, not by an argument here: a held call
+ *    returns `approvalRequired` before the handler is reached, and a denied one is answered
+ *    with a synthesised error result without reaching it (`ToolSet.mjs:58-71`). The handler
+ *    that calls this module runs if and only if the Bench answered `allow`.
  * 2. **It never opens the other ledger.** The measurement server owns the generated copy the
  *    blast radius is measured against; this module owns production, and refuses any file
  *    whose `seed` is not `PRODUCTION_SEED`. No path or variable naming that other ledger
  *    appears anywhere in this file.
  * 3. **It never reports a figure it did not compute.** The count and the total below are
  *    accumulated from the rows this call actually changed, as it changed them. The
- *    proposal's `declared_count` / `declared_value_cents` are never read here, and neither is
+ *    agent's `declared_count` / `declared_value_cents` are not even in `ApprovedAction`, and neither is
  *    the measurement or the Evaluator's citation — this module re-derives them
  *    (`contracts/mcp-tools.md` § What this server must never do).
  *
@@ -33,8 +35,6 @@ import {
   tableFor,
   type ActionName,
   type LedgerTable,
-  type ProposedAction,
-  type Verdict,
 } from '@crossexam/core';
 
 /** `packages/mcp/src` → repo root, so the default path does not depend on `process.cwd()`. */
@@ -222,24 +222,35 @@ function describe(error: unknown): string {
 
 
 /**
- * Apply `proposal` to the production ledger — on an `allow` resolution and only then
- * (FR-014) — and report the count and total this call computed while applying it.
- *
- * `proposal.declared_count` and `proposal.declared_value_cents` are deliberately unread: the
- * agent's belief is what the run holds against the measurement, never a figure this module
- * may repeat as its own.
- *
- * Never throws. An unreadable or malformed ledger comes back as a refusal, so the caller
- * (T029) can never mistake a failure to execute for a silent success.
+ * What an approved call carries into execution: the action, and the criteria that selects
+ * its rows. Deliberately narrower than `ProposedAction` — the agent's declared figures are
+ * what the run holds against the measurement, never a figure this module may repeat as its
+ * own, so they are not in scope here at all. A `ProposedAction` satisfies this type, which
+ * keeps a Bench-side caller possible without widening it.
  */
-export function executeOnAllow(
-  verdict: Verdict,
-  proposal: ProposedAction,
+export interface ApprovedAction {
+  action: ActionName;
+  criteria: string;
+}
+
+/**
+ * Apply an **approved** action to the production ledger and report the count and total this
+ * call computed while applying it (FR-014).
+ *
+ * The caller is the tool handler, and the harness is the guard: `ToolSet.mjs:58-71` returns
+ * `approvalRequired` before the handler is reached while the call is held, and answers a
+ * `deny` with a synthesised error result without reaching it either. The handler therefore
+ * runs if and only if the Bench answered `allow`, which is why no `Verdict` is checked here
+ * — checking one would mean fabricating it at the only call site that exists.
+ *
+ * Never throws. An unreadable or malformed ledger comes back as a refusal, so the caller can
+ * never mistake a failure to execute for a silent success.
+ */
+export function executeApproved(
+  approved: ApprovedAction,
   ledgerPath: string = PRODUCTION_LEDGER_PATH,
 ): ExecutionResult {
-  if (verdict.verdict !== 'allow') {
-    return refuse(`verdict is ${verdict.verdict}, not allow — the production ledger is untouched`);
-  }
+  const proposal = approved;
   const apply = EFFECTS[proposal.action];
   if (apply === null) {
     return refuse(`${proposal.action} has no effect the seeded ledger represents — nothing was written`);

@@ -5,10 +5,16 @@
  * registers it by URL with `require_approval_for_tools: ["@all"]`, so every call below
  * pauses at `tool.approval_required` (FR-001).
  *
- * **Nothing here executes.** A handler runs no action, opens no ledger — not the replica
- * (measurement is the `measure` server's job, contracts/measurement-executor.md) and not
- * production (that is T021, on an `allow` resolution and only then). It emits no count and
- * no value, because it computed none.
+ * **A handler is reached only after the Bench allowed the call.** `ToolSet.mjs:58-71` returns
+ * `approvalRequired` while the call is held and answers a `deny` with a synthesised error
+ * result, in both cases without calling the tool. So the handler below is the `allow` branch
+ * of `contracts/mcp-tools.md` § Behavior on call item 2, and it executes the action against
+ * production and reports what it computed while applying it (T021, FR-014).
+ *
+ * It never opens the replica: measurement belongs to the `measure` server
+ * (contracts/measurement-executor.md), and this server never measures. Every figure it
+ * reports is one `executeApproved` accumulated from the rows it changed — never a declared
+ * figure, never the Evaluator's citation.
  *
  * **Nothing here parses.** The three arguments arrive as raw strings from the harness
  * adapter (research D-14), which validates nothing, and reach the Bench unaltered. The
@@ -22,6 +28,13 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { z } from 'zod';
+
+import { executeApproved, PRODUCTION_LEDGER_PATH, type ExecutionResult } from './execute.ts';
+
+export interface ActionServerOptions {
+  /** The production ledger this server writes. Defaults to the repository's fixture. */
+  ledgerPath?: string;
+}
 
 /**
  * The three tools, in the order of contracts/mcp-tools.md § Tools.
@@ -48,6 +61,15 @@ const ACTION_ARGUMENTS = {
   declared_value: z.string(),
 };
 
+/** What the acting agent reads back: what ran, or why nothing did. */
+function report(name: string, result: ExecutionResult): string {
+  if (!result.executed) {
+    return `${name} was approved but did not run: ${result.reason}. The production ledger is unchanged.`;
+  }
+  const value = (result.value_cents / 100).toFixed(2);
+  return `${name} executed against the production ledger: ${String(result.count)} rows, $${value}.`;
+}
+
 /**
  * Serve the three tools over streamable HTTP at `url`, resolving once it is listening and
  * rejecting if the bind fails.
@@ -55,8 +77,12 @@ const ACTION_ARGUMENTS = {
  * Stateless: each request gets its own MCP server and transport, both closed with the
  * response, so no session state outlives a call.
  */
-export function startActionServer(url: string): Promise<HttpServer> {
+export function startActionServer(
+  url: string,
+  options: ActionServerOptions = {},
+): Promise<HttpServer> {
   const { hostname, port } = new URL(url);
+  const ledgerPath = options.ledgerPath ?? PRODUCTION_LEDGER_PATH;
 
   const http = createServer((req, res) => {
     const server = new McpServer({ name: 'crossexam-actions', version: '0.0.0' });
@@ -69,14 +95,16 @@ export function startActionServer(url: string): Promise<HttpServer> {
           inputSchema: ACTION_ARGUMENTS,
           annotations: { destructiveHint: true, idempotentHint: false, readOnlyHint: false },
         },
-        () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: `${name} was proposed and is held for review. Nothing has been executed and no ledger has been read or written.`,
-            },
-          ],
-        }),
+        // `criteria` is the only argument read: the action comes from the tool the harness
+        // dispatched, and the declared figures are the agent's belief, not this server's.
+        ({ criteria }) => {
+          const result = executeApproved({ action: name, criteria }, ledgerPath);
+          return {
+            ...(result.executed ? {} : { isError: true as const }),
+            content: [{ type: 'text' as const, text: report(name, result) }],
+            structuredContent: { ...result },
+          };
+        },
       );
     }
 
