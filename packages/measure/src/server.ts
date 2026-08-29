@@ -41,25 +41,6 @@ function failure(criteria: string, table: string) {
   };
 }
 
-/** Run the one measurement and shape its result as the contract's two rows. */
-export async function measureTool(
-  { criteria, table }: { criteria: string; table: string },
-  options: MeasureServerOptions,
-) {
-  if (!TABLES.has(table)) return failure(criteria, table);
-  const result = await measure({
-    ledgerPath: options.ledgerPath,
-    table: table as LedgerTable,
-    criteria,
-    signal: AbortSignal.timeout(options.timeoutMs),
-  });
-  if (result === null) return failure(criteria, table);
-  return {
-    content: [{ type: 'text' as const, text: encodeMeasurement(result) }],
-    structuredContent: { ...result },
-  };
-}
-
 /** Serve `measure` over streamable HTTP at `url`; stateless, one server and transport per request. */
 export function startMeasureServer(url: string, options: MeasureServerOptions): Promise<HttpServer> {
   const { hostname, port } = new URL(url);
@@ -74,7 +55,20 @@ export function startMeasureServer(url: string, options: MeasureServerOptions): 
         inputSchema: MEASURE_ARGUMENTS,
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       },
-      (args) => measureTool(args, options),
+      async ({ criteria, table }) => {
+        if (!TABLES.has(table)) return failure(criteria, table);
+        const result = await measure({
+          ledgerPath: options.ledgerPath,
+          table: table as LedgerTable,
+          criteria,
+          signal: AbortSignal.timeout(options.timeoutMs),
+        });
+        if (result === null) return failure(criteria, table);
+        return {
+          content: [{ type: 'text' as const, text: encodeMeasurement(result) }],
+          structuredContent: { ...result },
+        };
+      },
     );
 
     const transport = new StreamableHTTPServerTransport({});
@@ -83,7 +77,13 @@ export function startMeasureServer(url: string, options: MeasureServerOptions): 
       void server.close();
     });
     // Same `exactOptionalPropertyTypes` mismatch as packages/mcp; the object is unchanged.
-    void server.connect(transport as Transport).then(() => transport.handleRequest(req, res));
+    server
+      .connect(transport as Transport)
+      .then(() => transport.handleRequest(req, res))
+      .catch(() => {
+        if (!res.headersSent) res.writeHead(500);
+        res.end();
+      });
   });
 
   return new Promise((resolve, reject) => {
