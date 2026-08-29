@@ -375,13 +375,15 @@ one more surface for a computation the Bench can do on data it already holds.
 
 **Decision**: Patch `@truefoundry/trueforge@0.1.4` with `pnpm patch`, committed as
 `patches/@truefoundry__trueforge@0.1.4.patch` and applied on every install. One seam: the
-`llm:` factory in `apis/turns.ts` (`dist/main.js:10328` in 0.1.4, unbundled and
-source-mapped) constructs `new VercelAILLM(...)`; wrap it in `GrammarToolCallLLM`, an `ILLM`
+`llm:` factory in `apis/turns.ts` (`dist/main.js:10328` in 0.1.4, one unminified bundle with a
+source map) constructs `new VercelAILLM(...)`; wrap it in `GrammarToolCallLLM`, an `ILLM`
 implementation (`create()` / `createNonStream()`), ~80 lines. **Generic and registry-driven,
 not hardcoded to our keys.** At harness start it reads `CROSSEXAM_GRAMMAR_REGISTRY`
 (data-model §12): a JSON object mapping an emoji to a field name, with two reserved entries —
 the key mapped to `$tool` names the tool, and `$tools` lists the tool names the grammar
-covers. Unset → the wrapper is inert and the harness behaves stock.
+covers. Unset → the wrapper is inert and the harness behaves stock. Either way it logs one
+line at start — the key count and the `$tools` list, or `inert` — so a stock harness is never
+mistaken for a model that did not propose.
 
 ```json
 {"$tools":["bulk_refund","issue_payout","close_account","measure"],

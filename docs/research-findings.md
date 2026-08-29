@@ -466,7 +466,7 @@ This is not "getting a head start on the project": it is not giving away the fir
 block to installation. Everything here is infrastructure, not code for the idea.
 
 - [ ] Daytona account + API key with **Sandboxes** and **Snapshots (create)** permissions.
-- [ ] Node ≥ 22.14. `npx @truefoundry/trueforge@latest` → opens on `:8790`.
+- [ ] Node ≥ 22.14. `pnpm install && pnpm exec trueforge` from the workspace (pinned 0.1.4, research D-02 — never `npx`) → opens on `:8790`.
 - [ ] Configure the model provider (own key today; tomorrow the $50 from OpenAI).
 - [ ] Configure the sandbox provider with the Daytona key.
 - [ ] **Acid test**: a throwaway agent with `config.sandbox.enabled: true`, ask it to run a
