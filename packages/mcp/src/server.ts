@@ -27,9 +27,10 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { dollars } from '@crossexam/core';
 import { z } from 'zod';
 
-import { executeApproved, PRODUCTION_LEDGER_PATH, type ExecutionResult } from './execute.ts';
+import { executeApproved, PRODUCTION_LEDGER_PATH } from './execute.ts';
 
 export interface ActionServerOptions {
   /** The production ledger this server writes. Defaults to the repository's fixture. */
@@ -61,15 +62,6 @@ const ACTION_ARGUMENTS = {
   declared_value: z.string(),
 };
 
-/** What the acting agent reads back: what ran, or why nothing did. */
-function report(name: string, result: ExecutionResult): string {
-  if (!result.executed) {
-    return `${name} was approved but did not run: ${result.reason}. The production ledger is unchanged.`;
-  }
-  const value = (result.value_cents / 100).toFixed(2);
-  return `${name} executed against the production ledger: ${String(result.count)} rows, $${value}.`;
-}
-
 /**
  * Serve the three tools over streamable HTTP at `url`, resolving once it is listening and
  * rejecting if the bind fails.
@@ -99,9 +91,13 @@ export function startActionServer(
         // dispatched, and the declared figures are the agent's belief, not this server's.
         ({ criteria }) => {
           const result = executeApproved({ action: name, criteria }, ledgerPath);
+          // What the acting agent reads back: what ran, or why nothing did.
+          const text = result.executed
+            ? `${name} executed against the production ledger: ${String(result.count)} rows, $${dollars(result.value_cents)}.`
+            : `${name} was approved but did not run: ${result.reason}. The production ledger is unchanged.`;
           return {
             ...(result.executed ? {} : { isError: true as const }),
-            content: [{ type: 'text' as const, text: report(name, result) }],
+            content: [{ type: 'text' as const, text }],
             structuredContent: { ...result },
           };
         },
