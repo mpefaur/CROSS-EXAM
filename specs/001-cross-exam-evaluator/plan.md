@@ -24,8 +24,8 @@ confined to seven things the harness does not reach:
    conventional guardrails live there as a pure function the Bench calls.
 3. **The seeded ledgers** — production and replica, generated from independent seeds with
    no RNG, engineered so the demo's figures fall out of the data.
-4. **The measurement runner** — one `measure.py`, run in the Daytona sandbox by default and
-   locally when the sandbox is unreachable, behind a single interface.
+4. **The measurement runner** — one `measure.py`, run by a local isolated executor behind
+   a single interface.
 5. **`decide()`** — six ordered rules: escalate on data (no proposal, no measurement, over
    threshold), guide the Evaluator on a tool-usage slip, otherwise let its verdict stand
    (research D-06).
@@ -59,7 +59,7 @@ cheaper than a scenario re-run and each guards a number the demo depends on
 (Constitution IV, [research.md](./research.md) D-12).
 
 **Target Platform**: Local developer machine (macOS/Linux) driving TrueForge in local mode
-on `localhost:8790`, plus a Daytona sandbox reached over the network.
+on `localhost:8790`.
 
 **Project Type**: pnpm workspace — three libraries and one application, all Node-side. No
 frontend is written: the verdict card is OpenUI emitted by the Evaluator's prompt.
@@ -83,7 +83,7 @@ production; the action server never touches the replica.
 | # | Principle | Gate | Initial | Post-design |
 | --- | --- | --- | --- | --- |
 | I | The Live Demo Is the Definition of Done | Every planned artifact appears in the 3-minute demo, or is cut at 14:30 | ✅ | ✅ — [quickstart.md](./quickstart.md) § Cut order names exactly what is cancelled and what never is |
-| II | **Evidence, Not Inference** (NON-NEGOTIABLE) | No code path emits `allow`/`deny` without cited execution numbers | ✅ | ✅ — enforced by type: `Verdict.evidence` is non-null for `allow`/`deny` ([data-model.md](./data-model.md) §9); `Measurement` is constructible only by a `MeasurementExecutor` ([contract](./contracts/measurement-executor.md)); rules 1/2b/3 escalate on data, 2a/4/5 return guidance and escalate only once the retries are spent; code never emits `allow`/`deny` (D-06) |
+| II | **Evidence, Not Inference** (NON-NEGOTIABLE) | No code path emits `allow`/`deny` without cited execution numbers | ✅ | ✅ — enforced by type: `Verdict.evidence` is non-null for `allow`/`deny` ([data-model.md](./data-model.md) §9); `Measurement` is constructible only by `measure()` ([contract](./contracts/measurement-executor.md)); rules 1/2b/3 escalate on data, 2a/4/5 return guidance and escalate only once the retries are spent; code never emits `allow`/`deny` (D-06) |
 | III | The Harness Does the Work | Every behavior checked against the harness first, with the check recorded | ✅ | ✅ — full audit table, [research.md](./research.md) §A. Six behaviors fall short and only those are written |
 | IV | Verified by a Real Command | A real command proves done; the seeded scenario is the test | ✅ | ✅ — [quickstart.md](./quickstart.md) gives five runnable scenarios with the output to read |
 | V | One Task = One Branch = One PR = One Qodo Review | Plan does not batch tasks onto one branch | ✅ | ✅ — plan produces no code; `tasks.md` carries the per-task branches |
@@ -126,9 +126,9 @@ packages/
 │   │   ├── grammar/                 # emoji encode/decode (FR-024, FR-025)
 │   │   ├── model/                   # Charge, ChargeSheet, Measurement, Verdict, config
 │   │   ├── ledger/                  # deterministic generator, both seeds (FR-006, FR-007)
-│   │   ├── measure/                 # SandboxExecutor | LocalExecutor behind one interface
+│   │   ├── measure/                 # measure(): spawn measure.py, one 20 s budget
 │   │   └── verdict/                 # decide() — six rules: escalate on data, guide on tool use
-│   ├── scripts/measure.py           # the ONE measurement script, both transports run it
+│   ├── scripts/measure.py           # the ONE measurement script
 │   └── tests/                       # grammar · ledger totals · verdict rules
 ├── mcp/                             # streamable-HTTP MCP: bulk_refund, issue_payout,
 │   └── src/                         #   close_account + guardrails.ts (pure function, FR-017)
@@ -166,4 +166,3 @@ fails on a type error ([research.md](./research.md) D-01).
 | **A *how* lives in the spec** (Constitution VII): FR-024/FR-025 fix the emoji-keyed wire grammar in `spec.md` rather than here | The grammar is the contract **between the two agents**, and both sides must be built against it in parallel by two people in the same afternoon. Pinning it in the spec is what let `docs/emoji-grammar.md` be frozen before either builder started. Accepted explicitly by the owner in the spec's Assumptions and noted in `checklists/requirements.md` validation run 2 | Leaving it to `plan.md` — the artifact both builders agree on would then not exist until planning finished, which is after the point where builder B needs it. The cost of the deviation is one paragraph in the spec; the cost of the alternative is a merge conflict on the wire format at 13:00 |
 | **Own wire grammar replaces the harness's native tool-calling, through a `pnpm patch` on the harness's `ILLM` seam** (Constitution III, research D-14) | A field carrying JSON-escaped content must be re-parsed, and a failed re-parse is a lost tool call — on the one message the entire demo depends on. The flat emoji format is fewer tokens and is emitted more reliably by small models ([docs/emoji-grammar.md](../../docs/emoji-grammar.md) § Why) | Native tool-calling with a JSON argument object. The source article puts it ahead only past ~10 tools; this feature has three. Rejected on the spec's own reasoning, not re-litigated here |
 | **One config surface with one value today** (Constitution VIII): `CROSSEXAM_GRAMMAR_REGISTRY_PATH` points the D-14 adapter at `packages/core/src/grammar/registry.json` | The adapter is a reusable emoji-line-to-tool-call patch; hardcoding our keys into a third-party dist would tie a harness patch to product detail. One file is the source for both the decoders and the adapter, so the keys cannot drift | A hardcoded key table — smaller, but the patch would carry product knowledge it should not have |
-| **Two measurement transports** (Constitution VIII — extra code) | FR-004 requires the identical measurement to run through a local isolated executor when the sandbox is unreachable, and Risk R1 rates sandbox loss as terminal | A single sandbox path — one venue-network failure ends the demo. Mitigated to near-zero extra complexity by sharing **one** `measure.py` across both transports, so the arithmetic has exactly one implementation ([research.md](./research.md) D-03) |

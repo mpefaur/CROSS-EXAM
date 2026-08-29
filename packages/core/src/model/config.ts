@@ -9,10 +9,8 @@
 
 const REDACTED = '[redacted]';
 
-/** The three provider credentials. Required — no default, no repository value. */
+/** The two model-provider credentials. Required — no default, no repository value. */
 export interface Credentials {
-  /** Needs Sandboxes and Snapshots(create) — Risk R1. */
-  DAYTONA_API_KEY: string;
   OPENAI_API_KEY: string;
   ANTHROPIC_API_KEY: string;
 }
@@ -76,12 +74,10 @@ function int(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
  */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const credentials: Credentials = {
-    DAYTONA_API_KEY: required(env, 'DAYTONA_API_KEY'),
     OPENAI_API_KEY: required(env, 'OPENAI_API_KEY'),
     ANTHROPIC_API_KEY: required(env, 'ANTHROPIC_API_KEY'),
   };
   const redact = (): Record<keyof Credentials, string> => ({
-    DAYTONA_API_KEY: REDACTED,
     OPENAI_API_KEY: REDACTED,
     ANTHROPIC_API_KEY: REDACTED,
   });

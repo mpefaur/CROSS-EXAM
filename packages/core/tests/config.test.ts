@@ -9,7 +9,6 @@ import { loadConfig } from '../src/model/config.ts';
  * real leak and not a coincidence.
  */
 const creds = {
-  DAYTONA_API_KEY: 'Xq7Zm2Kv9Rb4Tn6Wy8Ld3Hf5Jc1Pg0',
   OPENAI_API_KEY: 'Vt3Nk8Rz5Qw1Ym7Bd4Gs9Lp2Hj6Fx0',
   ANTHROPIC_API_KEY: 'Cw5Jd2Nq8Xr4Kt7Vb1Zm9Ph3Ls6Gy0',
 } satisfies NodeJS.ProcessEnv;
@@ -76,7 +75,7 @@ describe('loadConfig defaults (data-model §12)', () => {
 });
 
 describe('loadConfig validation', () => {
-  it.each(['DAYTONA_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY'] as const)(
+  it.each(['OPENAI_API_KEY', 'ANTHROPIC_API_KEY'] as const)(
     'throws when %s is missing, and again when it is empty',
     (name) => {
       const without = env();
@@ -108,7 +107,6 @@ describe('loadConfig never echoes a credential, truncated or whole (FR-023, SC-0
     expectNoCredentialFragment(JSON.stringify(c));
     expectNoCredentialFragment(inspect(c, { depth: null }));
     expect(JSON.parse(JSON.stringify(c.credentials))).toEqual({
-      DAYTONA_API_KEY: '[redacted]',
       OPENAI_API_KEY: '[redacted]',
       ANTHROPIC_API_KEY: '[redacted]',
     });
@@ -124,7 +122,6 @@ describe('loadConfig never echoes a credential, truncated or whole (FR-023, SC-0
   it('still hands the real value to the code that needs it', () => {
     const c = loadConfig(env());
     expect(c.credentials.OPENAI_API_KEY).toBe(creds.OPENAI_API_KEY);
-    expect(c.credentials.DAYTONA_API_KEY).toBe(creds.DAYTONA_API_KEY);
     expect(c.credentials.ANTHROPIC_API_KEY).toBe(creds.ANTHROPIC_API_KEY);
   });
 
@@ -143,7 +140,7 @@ describe('loadConfig never echoes a credential, truncated or whole (FR-023, SC-0
     expectNoCredentialFragment(bad);
 
     const missing = thrown(() => loadConfig({ OPENAI_API_KEY: creds.OPENAI_API_KEY }));
-    expect(missing).toContain('DAYTONA_API_KEY');
+    expect(missing).toContain('ANTHROPIC_API_KEY');
     expectNoCredentialFragment(missing);
   });
 });

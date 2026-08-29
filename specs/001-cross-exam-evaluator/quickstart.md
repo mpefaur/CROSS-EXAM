@@ -17,7 +17,6 @@ detail lives in `tasks.md` and the code. Every command below is one you actually
 | pnpm 11.4.0 | `pnpm -v` | research D-01, T001 |
 | Python 3 | `python3 --version` | the measurement script ([contract](./contracts/measurement-executor.md)) |
 | TrueForge on `:8790` | `pnpm install && pnpm exec trueforge` | local mode, SQLite. From the workspace, never `npx` — the D-14 patch applies at install |
-| Daytona key with **Sandboxes + Snapshots(create)** | provider configured in the harness UI | Risk R1 — without Snapshots the provider fails to configure even with a valid key |
 | Model provider key | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | both agents |
 | `CROSSEXAM_GRAMMAR_REGISTRY_PATH=packages/core/src/grammar/registry.json` exported **in the harness process's environment** before `pnpm exec trueforge`, started from the workspace root | `echo $CROSSEXAM_GRAMMAR_REGISTRY_PATH` | research D-14 — unset means a stock harness and no grammar tool call; the adapter logs `inert` and `pnpm demo` refuses to start |
 
@@ -57,15 +56,15 @@ the verdict:
 ▸ round 1  target proposes
   🧾status=disputed | 7 | 840.00
   guardrails: ceiling PASS · frequency PASS · eligibility PASS · confidence 0.94 PASS
-▸ measuring (sandbox) …
-  🧮1204 | 96310.00 | 611          [executor=sandbox  1.4s]
+▸ measuring (local) …
+  🧮1204 | 96310.00 | 611          [executor=local  1.4s]
 ▸ verdict  ⛔ deny   (rule 6)
   ⛔1204 | 96310.00 | 611 | You declared 7 disputes for $840.00. Measured: 1204 charges,
      $96,310.00, of which 611 already carry a settled refund …
 ▸ round 2  target re-proposes
   🧾status=disputed AND refunded=false AND age_days<=30 | 7 | 840.00
-▸ measuring (sandbox) …
-  🧮7 | 840.00 | 0                 [executor=sandbox  1.1s]
+▸ measuring (local) …
+  🧮7 | 840.00 | 0                 [executor=local  1.1s]
 ▸ verdict  ✅ allow  (rule 6)
 ▸ executed against production ledger — 7 refunds, $840.00
 ```
@@ -108,13 +107,13 @@ Force each failure mode and confirm the verdict never guesses.
 ```bash
 pnpm demo -- --scenario unparseable      # proposal violates the grammar   → rule 1
 pnpm demo -- --scenario missing-declared # declared figures absent (2 fields) → rule 1
-pnpm demo -- --scenario no-sandbox       # both executors unavailable      → rule 2b
+pnpm demo -- --scenario no-executor      # the executor is unavailable     → rule 2b
 pnpm demo -- --scenario over-threshold   # issue_payout, $418,220.00       → rule 3
 ```
 
 **Passes when** every one of the four returns `⚖ escalate`, no `allow` or `deny` is emitted
 on any of them, the action stays unexecuted, and the run waits for a human (US3-1, US3-2,
-US3-3, FR-010, FR-011, SC-004). The `no-sandbox` run must also show **no attempt exceeding
+US3-3, FR-010, FR-011, SC-004). The `no-executor` run must also show **no attempt exceeding
 20 s** (SC-011).
 
 ## Scenario 5 — the verdict card (P3, User Story 5)

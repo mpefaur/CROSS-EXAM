@@ -11,11 +11,11 @@ Cline, Copilot, Codex, Gemini…). Agent-specific files (`CLAUDE.md`,
 
 - **Name:** CROSS-EXAM
 - **Purpose:** An adversarial evaluator agent that measures the real blast radius of
-  another agent's irreversible action — by executing it against a sandboxed replica —
+  another agent's irreversible action — by executing it against an isolated replica —
   and cross-examines that agent with the evidence before the action reaches production.
 - **Stack:** TypeScript on Node 22.14+, pnpm workspace. TrueForge harness (local mode,
   `:8790`) via `@truefoundry/trueforge-sdk`; two custom streamable-HTTP MCP servers
-  (`@modelcontextprotocol/sdk`); Daytona sandbox; a seeded deterministic ledger.
+  (`@modelcontextprotocol/sdk`); a seeded deterministic ledger.
 - **Run:** `pnpm demo` · **Test:** `pnpm test` · **Lint:** `pnpm lint` · **Build:** `pnpm build`
 
 > The four commands exist since Wave 1 (T001–T005). "Verified" means the command was run
