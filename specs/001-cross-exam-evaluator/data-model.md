@@ -170,7 +170,9 @@ Nothing in it is produced by code.
 
 **`Outcome`** — what `decide()` returns: `Verdict | Guidance`. A `Guidance` is
 `{ rule: '2a' | '4' | '5', message: string }` — the text the Bench sends the Evaluator as its next
-turn; the re-issued verdict goes through `decide()` again (research D-06).
+turn; the re-issued verdict goes through `decide()` again (research D-06). At most
+`CROSSEXAM_EVALUATOR_RETRIES` guidances per held action; the next failure is a `Verdict`
+`escalate` carrying that rule.
 
 **`Verdict`** — the final, system-owned result.
 
@@ -179,7 +181,7 @@ turn; the re-issued verdict goes through `decide()` again (research D-06).
 | `verdict` | `'allow' \| 'deny' \| 'escalate'` | exactly one (FR-008) |
 | `reason` | `string` | the Evaluator's `📝`, or the escalation reason from rule 1/2b/3 |
 | `evidence` | `Measurement \| null` | `observed`; `null` only when `verdict === 'escalate'` |
-| `rule` | `'1' \| '2b' \| '3' \| '6'` | which rule of research D-06 produced it; `'6'` = the Evaluator's verdict stood; rules 2a, 4 and 5 never produce a `Verdict`, only `Guidance` |
+| `rule` | `'1' \| '2a' \| '2b' \| '3' \| '4' \| '5' \| '6'` | which rule of research D-06 produced it; `'6'` = the Evaluator's verdict stood; `'2a'`, `'4'`, `'5'` appear only when the guidance retries are exhausted |
 
 **Invariant, enforced in one place and unit-tested** (Constitution II, FR-009):
 
@@ -254,6 +256,7 @@ the full registry there, because it is configuration the harness needs and not a
 | `EVALUATOR_MODEL` | `anthropic/claude-sonnet-4-6` | research D-10 |
 | `CROSSEXAM_ESCALATION_THRESHOLD_USD` | `250000` | research D-07 — the band is `$96,310 < t < $418,220` |
 | `CROSSEXAM_MEASUREMENT_TIMEOUT_MS` | `20000` | FR-010, SC-011 |
+| `CROSSEXAM_EVALUATOR_RETRIES` | `3` | research D-06/D-09 — guidance rounds per held action before the next tool-usage failure escalates |
 | `CROSSEXAM_CASE_BUDGET_MS` | `600000` | research D-09 — wall-clock bound on one case across all Evaluator turns and guidance rounds; expiry → `escalate` (D-06 rule 2b) |
 | `CROSSEXAM_ACTION_SERVER_URL` | `http://localhost:8801` | the action server, `packages/mcp` (registered on the target agent) |
 | `CROSSEXAM_MEASURE_SERVER_URL` | `http://localhost:8802` | the `measure` server, `packages/measure` (registered on the Evaluator; D-15) |

@@ -168,10 +168,11 @@ verdict goes through `decide()` again. The rules apply in this exact order.
 
 **Escalation is a data condition.** Only rules 1, 2b and 3 escalate. Everything else the
 guardrail catches is the Evaluator's *tool usage*, and a model corrects its tool usage when
-told — so the Bench tells it. There is no retry *count*: the only bound is the per-case
-wall-clock budget `CROSSEXAM_CASE_BUDGET_MS` (D-09, data-model §12); a case that outruns it
-has produced no usable measurement in time — an infrastructure condition — and escalates
-under rule 2b.
+told — so the Bench tells it. Two bounds, both in D-09 and data-model §12: guidance is
+issued at most `CROSSEXAM_EVALUATOR_RETRIES` (3) times per held action — the fourth failure
+escalates under the rule that fired (`'2a'`, `'4'` or `'5'`), because no valid verdict can be
+obtained — and the per-case wall clock `CROSSEXAM_CASE_BUDGET_MS`, whose expiry is an
+infrastructure condition and escalates under rule 2b.
 
 1. Proposal did not parse, or `🔢`/`💵` missing → **`escalate`** (FR-002, FR-025). No
    measurable proposal exists; this is the acting agent's message, not the Evaluator's.
@@ -271,7 +272,9 @@ is bounded at 20,000 ms by an `AbortSignal`; expiry abandons that attempt and co
 measurement produced" for that executor. Each **case** is bounded by the wall-clock budget
 `CROSSEXAM_CASE_BUDGET_MS` (default 600,000 ms) across all its Evaluator turns, guidance
 rounds included; expiry is an infrastructure failure → `escalate` under D-06 rule 2b. This is
-the only bound on the guidance loop — a wall clock, not a retry count.
+one of the two bounds on the guidance loop; the other is `CROSSEXAM_EVALUATOR_RETRIES`
+(default 3): the number of guidance rounds a held action may consume before the next failure
+escalates under the rule that fired (D-06).
 
 **Rationale**: Risks R5 and R6 verbatim — *"Creating a new turn in a session automatically
 cancels any turn still running in that session"*, and the SDK's 60 s default would abort a
