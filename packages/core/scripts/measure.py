@@ -12,7 +12,7 @@ stdout is the measurement in the emoji grammar and nothing else:
 `♻` is refunded=true for `charges`; `payouts` has no such column, so it is always 0 there.
 
 Criteria grammar (data-model.md §5, research D-04): `term (' AND ' term)*`, where a term is
-`field op value`, `field` is a column of the chosen table, `op` is one of = != > >= < <=,
+`field op value`, `field` is a §5 criteria field of the chosen table, `op` is one of = != > >= < <=,
 and `value` is a bare literal typed like the column — integer, true/false, or a bare word.
 No OR, no parentheses, no quotes, no eval. Ordering operators apply to integers only.
 
@@ -45,6 +45,11 @@ COLUMNS = {
         "amount_cents": int,
         "payout_eligible": bool,
     },
+}
+# data-model §5: the only fields a predicate may name.
+CRITERIA_FIELDS = {
+    "charges": {"status", "refunded", "age_days", "amount_cents", "customer_id"},
+    "payouts": {"payout_eligible", "merchant_id", "amount_cents"},
 }
 ACTED_ON = {"charges": "refunded", "payouts": None}
 
@@ -89,8 +94,8 @@ def parse_criteria(text, table):
         if not m:
             raise CriteriaError("term does not parse: %r" % part)
         field, op, raw = m.groups()
-        if field not in columns:
-            raise CriteriaError("unknown column for %s: %s" % (table, field))
+        if field not in CRITERIA_FIELDS[table]:
+            raise CriteriaError("field not in the criteria grammar for %s: %s" % (table, field))
         column_type = columns[field]
         if column_type is not int and op not in ("=", "!="):
             raise CriteriaError("ordering operator on a non-integer column: %s" % part)
@@ -117,6 +122,10 @@ def load_rows(path, table):
                 raise LedgerError("row %r: bad or missing %s" % (row.get("id"), field))
             if column_type is int and isinstance(row[field], bool):
                 raise LedgerError("row %r: %s is a boolean" % (row.get("id"), field))
+        if row["amount_cents"] <= 0:
+            raise LedgerError("row %r: amount_cents must be > 0" % row["id"])
+        if table == "charges" and row["refunded"] != (row["refunded_at"] is not None):
+            raise LedgerError("row %r: refunded disagrees with refunded_at" % row["id"])
     return rows
 
 
