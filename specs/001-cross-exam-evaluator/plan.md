@@ -26,8 +26,9 @@ confined to seven things the harness does not reach:
    no RNG, engineered so the demo's figures fall out of the data.
 4. **The measurement runner** — one `measure.py`, run in the Daytona sandbox by default and
    locally when the sandbox is unreachable, behind a single interface.
-5. **`decide()`** — six ordered rules that can only escalate; the verdict itself is the
-   Evaluator's (research D-06).
+5. **`decide()`** — six ordered rules: escalate on data (no proposal, no measurement, over
+   threshold), guide the Evaluator on a tool-usage slip, otherwise let its verdict stand
+   (research D-06).
 6. **`packages/measure`** — the read-only `measure` MCP tool the Evaluator calls, wrapping
    the runner (research D-15).
 7. **`patches/`** — `GrammarToolCallLLM`, the registry-driven `ILLM` wrapper that makes an
@@ -82,7 +83,7 @@ production; the action server never touches the replica.
 | # | Principle | Gate | Initial | Post-design |
 | --- | --- | --- | --- | --- |
 | I | The Live Demo Is the Definition of Done | Every planned artifact appears in the 3-minute demo, or is cut at 14:30 | ✅ | ✅ — [quickstart.md](./quickstart.md) § Cut order names exactly what is cancelled and what never is |
-| II | **Evidence, Not Inference** (NON-NEGOTIABLE) | No code path emits `allow`/`deny` without cited execution numbers | ✅ | ✅ — enforced by type: `Verdict.evidence` is non-null for `allow`/`deny` ([data-model.md](./data-model.md) §9); `Measurement` is constructible only by a `MeasurementExecutor` ([contract](./contracts/measurement-executor.md)); rules 1–5 can only escalate; code never emits `allow`/`deny` (D-06) |
+| II | **Evidence, Not Inference** (NON-NEGOTIABLE) | No code path emits `allow`/`deny` without cited execution numbers | ✅ | ✅ — enforced by type: `Verdict.evidence` is non-null for `allow`/`deny` ([data-model.md](./data-model.md) §9); `Measurement` is constructible only by a `MeasurementExecutor` ([contract](./contracts/measurement-executor.md)); rules 1/2b/3 escalate on data, 2a/4/5 return guidance; code never emits `allow`/`deny` (D-06) |
 | III | The Harness Does the Work | Every behavior checked against the harness first, with the check recorded | ✅ | ✅ — full audit table, [research.md](./research.md) §A. Five behaviors fall short and only those are written |
 | IV | Verified by a Real Command | A real command proves done; the seeded scenario is the test | ✅ | ✅ — [quickstart.md](./quickstart.md) gives five runnable scenarios with the output to read |
 | V | One Task = One Branch = One PR = One Qodo Review | Plan does not batch tasks onto one branch | ✅ | ✅ — plan produces no code; `tasks.md` carries the per-task branches |
@@ -126,7 +127,7 @@ packages/
 │   │   ├── model/                   # Charge, ChargeSheet, Measurement, Verdict, config
 │   │   ├── ledger/                  # deterministic generator, both seeds (FR-006, FR-007)
 │   │   ├── measure/                 # SandboxExecutor | LocalExecutor behind one interface
-│   │   └── verdict/                 # decide() — six guardrail rules; only ever escalates
+│   │   └── verdict/                 # decide() — six rules: escalate on data, guide on tool use
 │   ├── scripts/measure.py           # the ONE measurement script, both transports run it
 │   └── tests/                       # grammar · ledger totals · verdict rules
 ├── mcp/                             # streamable-HTTP MCP: bulk_refund, issue_payout,

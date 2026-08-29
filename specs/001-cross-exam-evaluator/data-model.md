@@ -136,32 +136,50 @@ artifact both builders must agree on before typing. Contract:
 | `transcript_excerpt` | `string` | the business request that led to the proposal |
 | `replica` | `{ seed: string, as_of: string, path: string }` | which replica the measurement must run against |
 
-## 8. Measurement
+## 8. MeasuredTriple and Measurement
 
-The numeric result of executing the criteria against the replica. **Produced only by
-executed code** (Constitution II) — there is no code path that constructs one from
-reasoning.
+`MeasuredTriple` is what `measure.py` prints and `decodeMeasurement` returns — the three
+numbers, nothing else. `Measurement` is a `MeasuredTriple` plus the transport metadata the
+executor adds. **Produced only by executed code** (Constitution II) — there is no code path
+that constructs one from reasoning.
+
+| Field | Type | In | Notes |
+| --- | --- | --- | --- |
+| `measured_count` | `integer` | triple | rows the action would affect (FR-005) |
+| `measured_value_cents` | `integer` | triple | their total value (FR-005) |
+| `duplicate_count` | `integer` | triple | of those, already irreversibly acted on (FR-005) |
+| `executor` | `'sandbox' \| 'local'` | Measurement | which transport produced it (FR-004) |
+| `duration_ms` | `integer` | Measurement | ≤ 20,000 per attempt (FR-010) |
+| `script_sha256` | `string` | Measurement | digest of the `measure.py` that ran — the same file on both transports |
+| `criteria` | `string` | Measurement | echoed from the `measure` call; D-06 rule 2a compares it to the proposal |
+| `table` | `'charges' \| 'payouts'` | Measurement | echoed; compared to `tableFor(action)` (§4) |
+
+Absence is a first-class state: `Measurement | null`. `null` means no measurement was
+produced, for any reason, and forces `escalate` (FR-010, D-06 rule 2b).
+
+## 9. EvaluatorVerdict, Outcome, Verdict
+
+**`EvaluatorVerdict`** — what `decodeVerdict` returns from the Evaluator's grammar message.
+Nothing in it is produced by code.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `measured_count` | `integer` | rows the action would affect (FR-005) |
-| `measured_value_cents` | `integer` | their total value (FR-005) |
-| `duplicate_count` | `integer` | of those, already irreversibly acted on (FR-005) |
-| `executor` | `'sandbox' \| 'local'` | which transport produced it (FR-004) |
-| `duration_ms` | `integer` | ≤ 20,000 per attempt (FR-010) |
-| `script_sha256` | `string` | digest of the `measure.py` that ran — the same file on both transports |
+| `verdict` | `'allow' \| 'deny' \| 'escalate'` | the `⚖` line (FR-008) |
+| `reason` | `string \| null` | the `📝` line |
+| `cited` | `MeasuredTriple \| null` | the `🧮`/`💰`/`♻` lines; required on `allow`/`deny` (registry) |
 
-Absence is a first-class state: `Measurement | null`. `null` means no measurement was
-produced, for any reason, and forces `escalate` (FR-010).
+**`Outcome`** — what `decide()` returns: `Verdict | Guidance`. A `Guidance` is
+`{ rule: 2 | 4 | 5, message: string }` — the text the Bench sends the Evaluator as its next
+turn; the re-issued verdict goes through `decide()` again (research D-06).
 
-## 9. Verdict
+**`Verdict`** — the final, system-owned result.
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `verdict` | `'allow' \| 'deny' \| 'escalate'` | exactly one (FR-008) |
-| `reason` | `string` | delivered to the acting agent on `deny` (FR-012) |
-| `evidence` | `Measurement \| null` | `null` only when `verdict === 'escalate'` |
-| `rule` | `1 \| 2 \| 3 \| 4 \| 5 \| 6` | which rule of research D-06 fired; `6` = no guardrail fired, the Evaluator's verdict stood |
+| `reason` | `string` | the Evaluator's `📝`, or the escalation reason from rule 1/2b/3 |
+| `evidence` | `Measurement \| null` | `observed`; `null` only when `verdict === 'escalate'` |
+| `rule` | `1 \| 2 \| 3 \| 6` | which rule of research D-06 produced it; `6` = the Evaluator's verdict stood; rules 4 and 5 never produce a `Verdict`, only `Guidance` |
 
 **Invariant, enforced in one place and unit-tested** (Constitution II, FR-009):
 
@@ -187,7 +205,9 @@ One held action moves through exactly these states. No other transition exists.
                  rule 6 ┌─────────────────┬─────────────── ┤ rule 6
                         ▼                 ▼                ▼
                      DENIED           ESCALATED         ALLOWED
-                        │             (rules 1–5)           │
+                        │            (rules 1,2b,3)         │
+                        │   rules 2a/4/5: guidance to the   │
+                        │   Evaluator, back to DECIDED      │
        round 1 only ────┘                  │                ▼
        agent re-proposes                   │            EXECUTED
        → new HeldAction, round 2           │            (production ledger)
@@ -196,7 +216,9 @@ One held action moves through exactly these states. No other transition exists.
                                    (no timeout, ever)
 ```
 
-- `MEASURING` with no measurement produced → `ESCALATED` via rule 2, never `DENIED`.
+- `MEASURING` with no measurement produced → `ESCALATED` via rule 2b, never `DENIED`. A
+  tool-usage mistake by the Evaluator (rules 2a, 4, 5) loops through a guidance turn and
+  never leaves `DECIDED`.
 - `DENIED` at round 2 is terminal: the run ends with the action unexecuted and reports the
   denial as final (spec, Edge Cases).
 - `ESCALATED` is terminal until a human answers. There is **no** auto-approving timeout.

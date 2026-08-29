@@ -10,8 +10,8 @@ the encoder and decoder in `packages/core/src/grammar/` must do (FR-024, FR-025)
 type DecodeResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 decodeProposal(text: string): DecodeResult<ProposedAction>
-decodeVerdict(text: string): DecodeResult<Verdict>
-decodeMeasurement(text: string): DecodeResult<Measurement['evidence']>   // 🧮 💰 ♻ only — measure.py stdout
+decodeVerdict(text: string): DecodeResult<EvaluatorVerdict>      // ⚖ 📝 and the cited 🧮 💰 ♻ — data-model §9
+decodeMeasurement(text: string): DecodeResult<MeasuredTriple>     // 🧮 💰 ♻ only — measure.py stdout, data-model §8
 ```
 
 Obligations:

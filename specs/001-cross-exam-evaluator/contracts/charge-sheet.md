@@ -63,7 +63,8 @@ and the processor does not reverse them. Narrow the criteria or justify the amou
 - MUST call `measure` (`🧾measure` / `🔍` / `🗂`, research D-15) with the proposal's **exact**
   `🔍` and `tableFor(action)` before writing `⚖allow` or `⚖deny`; the Bench reads the last
   such result as `observed`, and a verdict without one — or one measured on other criteria —
-  is escalated by rule 2 of research D-06 whatever the Evaluator wrote (FR-004).
+  is answered with guidance by rule 2a of research D-06, whatever the Evaluator wrote
+  (FR-004); only a measurement that *fails* on the right criteria escalates (rule 2b).
 - `⚖allow` and `⚖deny` MUST carry `🧮`, `💰`, `♻` equal to what `measure` returned (FR-009,
   Constitution II); a difference is escalated by rule 4.
 - `⚖escalate` carries `📝` and MAY carry the measured triple (rule 3 — threshold exceeded —
@@ -74,8 +75,9 @@ and the processor does not reverse them. Narrow the criteria or justify the amou
 ## Resolution
 
 The orchestrator first runs `decide(proposal, evaluatorVerdict, observed, config)` (research
-D-06) — a guardrail that can only turn the verdict into `escalate` — then maps the result onto
-the pending approval:
+D-06). Its `Outcome` is either a `Guidance` — the orchestrator sends the message as the
+Evaluator's next turn and runs `decide()` on the re-issued verdict — or a final `Verdict`,
+mapped onto the pending approval:
 
 | Verdict | Harness action | Result |
 | --- | --- | --- |

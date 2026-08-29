@@ -154,49 +154,62 @@ it with zero setup.
 - *Hardcode the totals in the verdict*: this is precisely the Constitution II violation the
   whole project exists to refuse (Risk R4).
 
-### D-06 — The verdict is the Evaluator's; `decide()` is the guardrail that can only escalate
+### D-06 — The verdict is the Evaluator's; `decide()` guards its tool use and escalates only on data
 
 **Decision**: The Evaluator — a model — measures by calling the `measure` tool (D-15) and
 then writes the verdict in the grammar. Code never approves and never denies. One pure
-function, `decide(proposal, evaluatorVerdict, observed, config) → Verdict`, where `observed`
-is the **last** `measure` tool result of the Evaluator's turn, as the Bench read it from the
-tool-result event (`null` when no call produced a result), applies these rules in this exact
-order.
-Every rule can only force **`escalate`**; if none fires, the Evaluator's verdict stands.
+function, `decide(proposal, evaluatorVerdict, observed, config) → Outcome`, where
+`evaluatorVerdict` is the `DecodeResult<EvaluatorVerdict>` of the Evaluator's message
+(data-model §9) and `observed` is the **last** `measure` tool result of the Evaluator's turn,
+as the Bench read it from the tool-result event (`null` when no call produced a result).
+`Outcome` is either a final `Verdict` or a `Guidance` — text the Bench sends the Evaluator as
+its next turn, carrying what was wrong and the observed figures, after which the re-issued
+verdict goes through `decide()` again. The rules apply in this exact order.
 
-1. Proposal did not parse, or `🔢`/`💵` missing → **`escalate`** (FR-002, FR-025).
-2. No observed measurement **for this proposal** — the Evaluator never called `measure`,
-   both executors failed or exceeded their 20 s budget, or the last result's echoed
-   `criteria`/`table` differ from the proposal's `🔍` and `tableFor(action)` (data-model §4)
-   → **`escalate`** (FR-004, FR-010). Whatever the Evaluator wrote. Measuring something
-   else is not measuring this.
+**Escalation is a data condition.** Only rules 1, 2b and 3 escalate. Everything else the
+guardrail catches is the Evaluator's *tool usage*, and a model corrects its tool usage when
+told — so the Bench tells it. There is no retry cap: a case that outruns the SDK's 600 s
+turn budget (D-09) is an infrastructure failure and escalates under rule 2b.
+
+1. Proposal did not parse, or `🔢`/`💵` missing → **`escalate`** (FR-002, FR-025). No
+   measurable proposal exists; this is the acting agent's message, not the Evaluator's.
+2. No observed measurement for this proposal:
+   - **2a** the Evaluator never called `measure`, or the last result's echoed
+     `criteria`/`table` differ from the proposal's `🔍` and `tableFor(action)` (data-model
+     §4) → **`Guidance`**: "measure the proposal's exact criteria on `<table>`".
+   - **2b** `measure` was called on the right criteria but produced nothing — both executors
+     failed or exceeded their 20 s budget → **`escalate`** (FR-004, FR-010).
 3. `observed.value > escalation_threshold` → **`escalate`**, citing the observed figures
    (FR-011).
-4. On `⚖allow`/`⚖deny`, or whenever a triple is present: the Evaluator's cited `🧮`/`💰`/`♻`
-   differ from `observed` → **`escalate`**. It cited numbers it did not measure
-   (Constitution II).
+4. The Evaluator's message did not decode as a verdict, or on `⚖allow`/`⚖deny` (or whenever a
+   triple is present) its cited `🧮`/`💰`/`♻` differ from `observed` → **`Guidance`**: the
+   grammar it must use and the figures it actually measured (Constitution II).
 5. The Evaluator wrote `⚖allow` while `observed.count != declared_count`,
    `observed.value != declared_value` (exact, to the cent), or `observed.duplicates > 0` →
-   **`escalate`**. It approved a mismatch; a person looks.
-6. Otherwise the Evaluator's verdict stands — `allow` or `deny`, with its `📝` — and
-   `evidence` is `observed`.
+   **`Guidance`**: the mismatch, line by line. It approved what its own measurement
+   contradicts.
+6. Otherwise the Evaluator's verdict stands — `allow` or `deny`, with its `📝` — as a
+   `Verdict` with `evidence = observed` and `rule = 6`.
 
 There is no "inconclusive" branch (spec, Clarification 3). The demo's first round is a
 `deny` the Evaluator writes itself (1,204 ≠ 7) and the second an `allow` it writes itself
-(7 = 7, $840.00, 0 duplicates); both pass rule 6.
+(7 = 7, $840.00, 0 duplicates); both pass rule 6 on the first try.
 
 **Rationale**: The judgment belongs to the model — that is what an evaluator agent is. The
-deterministic part is a guardrail around its tool use: did it measure, did it cite what it
-measured, did it approve something the numbers contradict. Rules 1–3 precede 4–5 because
-they hold with no verdict at all. Exact equality rather than a tolerance: a tolerance is a
-threshold nobody specified, and the seeded data makes exactness free.
+deterministic part guards its tool use: did it measure this proposal, did it cite what it
+measured, did it approve something the numbers contradict. A person is interrupted only when
+the *data* says so — no proposal, no measurement, too much money — never because a model
+mis-typed a line once. Rules 1–3 precede 4–5 because they hold with no verdict at all.
+Exact equality rather than a tolerance: a tolerance is a threshold nobody specified, and the
+seeded data makes exactness free.
 
 **Alternatives considered**:
-- *`decide()` produces the verdict from the measurement* (the earlier form of this
-  decision): deterministic code deciding, the model reduced to a narrator. Rejected — the
-  models make the calls; code guards them.
-- *Rule 5 forces `deny` instead of `escalate`*: code denying is code deciding. `escalate` is
-  the conservative outcome and Constitution II admits no waiver.
+- *`decide()` produces the verdict from the measurement* (the earliest form): deterministic
+  code deciding, the model reduced to a narrator. Rejected — the models make the calls; code
+  guards them.
+- *Rules 2a/4/5 escalate* (the previous form): a human interrupted for a tool-usage slip the
+  model would fix on the next turn. Rejected — escalation is for data.
+- *A retry cap on guidance*: a threshold nobody specified; the turn budget already bounds it.
 - *A percentage tolerance on the declared figures*: speculative configuration with one
   possible value (Constitution VIII).
 
@@ -296,7 +309,7 @@ Assumptions.
 three things, because each is cheaper to check than a full scenario re-run:
 1. the grammar decoder (round-trip + every malformed-input rejection path),
 2. the ledger generator's cohort totals (1,204 / $96,310.00 / 611 / 7 / $840.00 / $418,220.00),
-3. `decide()`'s six guardrail rules and their ordering.
+3. `decide()`'s six rules, their ordering, and that only 1/2b/3 escalate.
 
 Nothing else gets a unit test.
 
