@@ -1,1 +1,2 @@
 export * from './model/entities.ts';
+export * from './model/case.ts';
