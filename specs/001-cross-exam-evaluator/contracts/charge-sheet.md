@@ -35,7 +35,7 @@ Sent as the Evaluator turn's message: a JSON object matching `ChargeSheet`
 ```
 
 When the proposal did not parse, `proposal` is `{ "parse_error": "<reason>" }` instead, and
-the Evaluator returns `escalate` under rule 1 without attempting a measurement.
+the Bench escalates under rule 1 before any Evaluator turn; the Evaluator is not consulted.
 
 **Orchestrator obligations**
 - Correlate `tool.approval_required` (which carries only `{id, source_event_id}`) with the

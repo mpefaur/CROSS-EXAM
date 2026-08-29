@@ -169,7 +169,7 @@ Nothing in it is produced by code.
 | `cited` | `MeasuredTriple \| null` | the `🧮`/`💰`/`♻` lines; required on `allow`/`deny` (registry) |
 
 **`Outcome`** — what `decide()` returns: `Verdict | Guidance`. A `Guidance` is
-`{ rule: 2 | 4 | 5, message: string }` — the text the Bench sends the Evaluator as its next
+`{ rule: '2a' | '4' | '5', message: string }` — the text the Bench sends the Evaluator as its next
 turn; the re-issued verdict goes through `decide()` again (research D-06).
 
 **`Verdict`** — the final, system-owned result.
@@ -179,7 +179,7 @@ turn; the re-issued verdict goes through `decide()` again (research D-06).
 | `verdict` | `'allow' \| 'deny' \| 'escalate'` | exactly one (FR-008) |
 | `reason` | `string` | the Evaluator's `📝`, or the escalation reason from rule 1/2b/3 |
 | `evidence` | `Measurement \| null` | `observed`; `null` only when `verdict === 'escalate'` |
-| `rule` | `1 \| 2 \| 3 \| 6` | which rule of research D-06 produced it; `6` = the Evaluator's verdict stood; rules 4 and 5 never produce a `Verdict`, only `Guidance` |
+| `rule` | `'1' \| '2b' \| '3' \| '6'` | which rule of research D-06 produced it; `'6'` = the Evaluator's verdict stood; rules 2a, 4 and 5 never produce a `Verdict`, only `Guidance` |
 
 **Invariant, enforced in one place and unit-tested** (Constitution II, FR-009):
 
@@ -254,6 +254,7 @@ the full registry there, because it is configuration the harness needs and not a
 | `EVALUATOR_MODEL` | `anthropic/claude-sonnet-4-6` | research D-10 |
 | `CROSSEXAM_ESCALATION_THRESHOLD_USD` | `250000` | research D-07 — the band is `$96,310 < t < $418,220` |
 | `CROSSEXAM_MEASUREMENT_TIMEOUT_MS` | `20000` | FR-010, SC-011 |
+| `CROSSEXAM_CASE_BUDGET_MS` | `600000` | research D-09 — wall-clock bound on one case across all Evaluator turns and guidance rounds; expiry → `escalate` (D-06 rule 2b) |
 | `CROSSEXAM_ACTION_SERVER_URL` | `http://localhost:8801` | the action server, `packages/mcp` (registered on the target agent) |
 | `CROSSEXAM_MEASURE_SERVER_URL` | `http://localhost:8802` | the `measure` server, `packages/measure` (registered on the Evaluator; D-15) |
 | `CROSSEXAM_REPLICA_PATH` | `fixtures/replica.json` | the only ledger the `measure` server opens. Server ports sit at `:880x`, clear of TrueForge's `:8790` (local) and `:8791` (hosted) |

@@ -108,7 +108,7 @@ Force each failure mode and confirm the verdict never guesses.
 ```bash
 pnpm demo -- --scenario unparseable      # proposal violates the grammar   → rule 1
 pnpm demo -- --scenario missing-declared # 🔢 absent                       → rule 1
-pnpm demo -- --scenario no-sandbox       # both executors unavailable      → rule 2
+pnpm demo -- --scenario no-sandbox       # both executors unavailable      → rule 2b
 pnpm demo -- --scenario over-threshold   # issue_payout, $418,220.00       → rule 3
 ```
 

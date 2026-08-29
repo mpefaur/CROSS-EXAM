@@ -168,8 +168,10 @@ verdict goes through `decide()` again. The rules apply in this exact order.
 
 **Escalation is a data condition.** Only rules 1, 2b and 3 escalate. Everything else the
 guardrail catches is the Evaluator's *tool usage*, and a model corrects its tool usage when
-told — so the Bench tells it. There is no retry cap: a case that outruns the SDK's 600 s
-turn budget (D-09) is an infrastructure failure and escalates under rule 2b.
+told — so the Bench tells it. There is no retry *count*: the only bound is the per-case
+wall-clock budget `CROSSEXAM_CASE_BUDGET_MS` (D-09, data-model §12); a case that outruns it
+has produced no usable measurement in time — an infrastructure condition — and escalates
+under rule 2b.
 
 1. Proposal did not parse, or `🔢`/`💵` missing → **`escalate`** (FR-002, FR-025). No
    measurable proposal exists; this is the acting agent's message, not the Evaluator's.
@@ -189,7 +191,7 @@ turn budget (D-09) is an infrastructure failure and escalates under rule 2b.
    **`Guidance`**: the mismatch, line by line. It approved what its own measurement
    contradicts.
 6. Otherwise the Evaluator's verdict stands — `allow` or `deny`, with its `📝` — as a
-   `Verdict` with `evidence = observed` and `rule = 6`.
+   `Verdict` with `evidence = observed` and `rule = '6'`.
 
 There is no "inconclusive" branch (spec, Clarification 3). The demo's first round is a
 `deny` the Evaluator writes itself (1,204 ≠ 7) and the second an `allow` it writes itself
@@ -264,9 +266,12 @@ neither. This remains a **deliberate deviation** on two counts — a *how* in th
 
 **Decision**: One FIFO queue per `sessionId` in the orchestrator; a turn is never created
 while another is in flight for that session (FR-003). SDK client constructed with
-`timeoutInSeconds: 600`. Each measurement attempt is bounded at 20,000 ms by an
-`AbortSignal`; expiry abandons that attempt and counts as "no measurement produced" for
-that executor.
+`timeoutInSeconds: 600` — a per-request timeout, reset on every turn. Each measurement attempt
+is bounded at 20,000 ms by an `AbortSignal`; expiry abandons that attempt and counts as "no
+measurement produced" for that executor. Each **case** is bounded by the wall-clock budget
+`CROSSEXAM_CASE_BUDGET_MS` (default 600,000 ms) across all its Evaluator turns, guidance
+rounds included; expiry is an infrastructure failure → `escalate` under D-06 rule 2b. This is
+the only bound on the guidance loop — a wall clock, not a retry count.
 
 **Rationale**: Risks R5 and R6 verbatim — *"Creating a new turn in a session automatically
 cancels any turn still running in that session"*, and the SDK's 60 s default would abort a
@@ -444,7 +449,7 @@ string arguments `criteria` and `table` (`charges` | `payouts`), annotated read-
 non-destructive so it needs no approval. It runs the resolution order of D-03 (sandbox
 first, local fallback, one fresh 20 s budget each) and returns the three grammar lines
 exactly as `measure.py` printed them as its text result, with `{executor, duration_ms,
-script_sha256, criteria, table}` in `structuredContent` — the echo is what lets rule 2 of D-06
+script_sha256, criteria, table}` in `structuredContent` — the echo is what lets rule 2a of D-06
 tie the result to the proposal. It reads the replica at `CROSSEXAM_REPLICA_PATH` and listens
 on `CROSSEXAM_MEASURE_SERVER_URL`; the action server listens on `CROSSEXAM_ACTION_SERVER_URL`
 (data-model §12). `pnpm demo` starts both (T030). The Evaluator invokes it in the grammar —

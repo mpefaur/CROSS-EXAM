@@ -158,7 +158,7 @@ Scenario 4 each return `⚖escalate`, none emits `allow` or `deny`, and no attem
 
 > **Sequenced before User Story 2** despite sharing priority P2: [quickstart.md](./quickstart.md)
 > § Cut order never cuts Scenario 4 — it carries the Constitution II invariant — while Scenario 3
-> (User Story 2) is cut at the cutline. `decide()` already implements rules 1–3 from T018; this
+> (User Story 2) is cut at the cutline. `decide()` already implements rules 1, 2b and 3 from T018; this
 > phase makes them reachable and observable.
 
 - [ ] T033 [US3] Add scenario selection in `apps/bench/src/scenarios.ts` and the `--scenario` flag in `apps/bench/src/demo.ts` for `unparseable`, `missing-declared`, `no-sandbox`, and `over-threshold`, each forcing exactly one failure mode without altering the production code path
@@ -249,7 +249,7 @@ earlier verdict with its cited evidence.
 - **Phase 1 (Setup)** — no dependencies, starts immediately
 - **Phase 2 (Foundational)** — depends on Phase 1; blocks every user story task **that touches the wire format or reads a ledger**. T009 (grammar) is the hard gate — the two-agent contract, and a change to it after either builder branches breaks both sides at once. T013 (fixtures) gates only the ledger readers (T015 run, T016, T021, T030). T014, T018 and T022 are gated by neither
 - **Phase 3 (US1, P1)** — depends on Phase 2. **The 14:30 PDT cutline.**
-- **Phase 4 (US3, P2)** — depends on Phase 3 (reuses `decide()` rules 1–3 and the resolver)
+- **Phase 4 (US3, P2)** — depends on Phase 3 (reuses `decide()` rules 1, 2b and 3 and the resolver)
 - **Phase 5 (US2, P2)** — depends on Phase 3 (extends the MCP handler and the charge sheet)
 - **Phase 6 (US4, P3)** and **Phase 7 (US5, P3)** — depend on Phase 3; cancelled if Phase 3 has not closed by 14:30
 - **Phase 8 (US6, P4)** — built only if Phases 6 and 7 are done before the 16:00 freeze

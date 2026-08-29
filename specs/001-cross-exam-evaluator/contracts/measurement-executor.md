@@ -66,7 +66,7 @@ attached only to the Evaluator. Arguments `criteria` and `table` (strings; the h
 them from the `🔍` and `🗂` lines). Non-destructive: no approval. It runs the resolution order
 below and returns the script's three lines verbatim as its text result, plus
 `{ executor, duration_ms, script_sha256, criteria, table }` as `structuredContent` — the echoed
-`criteria`/`table` let D-06 rule 2 tie the result to the proposal. It opens only
+`criteria`/`table` let D-06 rule 2a tie the result to the proposal. It opens only
 `CROSSEXAM_REPLICA_PATH` and listens on `CROSSEXAM_MEASURE_SERVER_URL` (data-model §12). The Bench reads the
 **last** `measure` tool-result event of the Evaluator's turn to build `observed` for `decide()`
 (research D-06); it never runs the executors itself.
@@ -78,7 +78,7 @@ below and returns the script's three lines verbatim as its text result, plus
    fresh 20,000 ms signal (FR-010: "the fallback executor is then attempted under the same
    20-second limit").
 3. If that also returns `null`, the measurement is `null` and the verdict is `escalate`
-   under rule 2. There is no third attempt and no retry loop.
+   under rule 2b. There is no third attempt and no retry loop.
 
 Worst case a single case spends 40 s across both attempts; **no single attempt exceeds
 20 s** (SC-011).
