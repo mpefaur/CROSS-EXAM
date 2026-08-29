@@ -3,13 +3,11 @@ exact file; Measurement.script_sha256 records which bytes ran.
 
     python3 measure.py --ledger <path.json> --table <charges|payouts> --criteria '<expr>'
 
-stdout is the measurement in the emoji grammar and nothing else:
+stdout is the measurement, one line in the emoji grammar, and nothing else:
 
-    🧮<matched rows>
-    💰<sum of amount_cents as dollars, two decimals>
-    ♻<matched rows already irreversibly acted on>
+    🧮<matched rows> | <sum of amount_cents as dollars, two decimals> | <matched rows already irreversibly acted on>
 
-`♻` is refunded=true for `charges`; `payouts` has no such column, so it is always 0 there.
+The third field is refunded=true for `charges`; `payouts` has no such column, so it is always 0 there.
 
 Criteria grammar (data-model.md §5, research D-04): `term (' AND ' term)*`, where a term is
 `field op value`, `field` is a §5 criteria field of the chosen table, `op` is one of = != > >= < <=,
@@ -26,7 +24,7 @@ import json
 import re
 import sys
 
-COUNT, VALUE, DUPLICATE = "\U0001F9EE", "\U0001F4B0", "\u267B"
+MEASUREMENT = "\U0001F9EE"
 
 COLUMNS = {
     "charges": {
@@ -160,8 +158,8 @@ def main(argv):
         sys.stderr.write("measure.py: ledger: %s\n" % exc)
         return 3
     count, total_cents, duplicates = measure(rows, terms, ACTED_ON[args.table])
-    out = "%s%d\n%s%d.%02d\n%s%d\n" % (
-        COUNT, count, VALUE, total_cents // 100, total_cents % 100, DUPLICATE, duplicates
+    out = "%s%d | %d.%02d | %d\n" % (
+        MEASUREMENT, count, total_cents // 100, total_cents % 100, duplicates
     )
     sys.stdout.buffer.write(out.encode("utf-8"))
     sys.stdout.flush()

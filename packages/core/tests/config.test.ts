@@ -60,12 +60,12 @@ describe('loadConfig defaults (data-model §12)', () => {
       env({
         TARGET_AGENT_NAME: 'some-other-agent',
         CROSSEXAM_EVALUATOR_RETRIES: '5',
-        CROSSEXAM_GRAMMAR_REGISTRY: '{"🧾":"$tool"}',
+        CROSSEXAM_GRAMMAR_REGISTRY: '{"🧾":["bulk_refund","criteria"]}',
       }),
     );
     expect(c.target_agent_name).toBe('some-other-agent');
     expect(c.evaluator_retries).toBe(5);
-    expect(c.grammar_registry).toBe('{"🧾":"$tool"}');
+    expect(c.grammar_registry).toBe('{"🧾":["bulk_refund","criteria"]}');
   });
 
   it('treats an empty variable as unset, so an empty registry leaves the adapter inert', () => {

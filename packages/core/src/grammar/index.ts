@@ -5,13 +5,16 @@
  * `specs/001-cross-exam-evaluator/contracts/wire-grammar.md`. Nothing here duplicates the
  * registry's rationale; it implements it.
  *
- * The decode is strict and single-pass. Every rejection returns `{ ok: false }` with a
- * reason; there is never a second, looser attempt and no field value is ever inferred
- * (FR-025). No escaping is performed and none is needed — no ledger value contains an
- * emoji, so a key can never appear inside a value (registry § Invariant).
+ * One message is one line: one emoji names the message kind — the tool, the measurement,
+ * or the verdict — and its fields follow in fixed order, separated by `|`. The decode is
+ * strict and single-pass: a wrong key, a second line, or a field count other than the key's
+ * arity returns `{ ok: false }`; there is never a looser second attempt and no field value
+ * is ever inferred (FR-025). No escaping exists — no ledger value contains an emoji or a `|`
+ * (registry § Invariant).
  */
 
 import type {
+  ActionName,
   EvaluatorVerdict,
   MeasuredTriple,
   ProposedAction,
@@ -20,278 +23,156 @@ import type {
 
 export type DecodeResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
-/* -------------------------------------------------------------------------- */
-/* Keys                                                                        */
-/* -------------------------------------------------------------------------- */
-
-const ACTION = '\u{1F9FE}'; // 🧾
-const CRITERIA = '\u{1F50D}'; // 🔍
-const DECLARED_COUNT = '\u{1F522}'; // 🔢
-const DECLARED_VALUE = '\u{1F4B5}'; // 💵
-const VERDICT = '\u{2696}'; // ⚖
-const MEASURED_COUNT = '\u{1F9EE}'; // 🧮
-const MEASURED_VALUE = '\u{1F4B0}'; // 💰
-const DUPLICATE_COUNT = '\u{267B}'; // ♻
-const REASON = '\u{1F4DD}'; // 📝
-
-/**
- * One key set per direction. A key from another direction is an unregistered key here, so
- * obligation 1 ("a verdict key in a proposal ... is a parse failure") needs no extra check.
- * `🗂` (U+1F5C2) is absent from all three on purpose: it belongs to the measurement request,
- * which the harness routes to the `measure` server and no Bench decoder accepts.
- */
-const PROPOSAL_KEYS: ReadonlySet<string> = new Set([
-  ACTION,
-  CRITERIA,
-  DECLARED_COUNT,
-  DECLARED_VALUE,
+const PROPOSAL_KEYS: ReadonlyMap<string, ActionName> = new Map([
+  ['\u{1F9FE}', 'bulk_refund'], // 🧾
+  ['\u{1F4B8}', 'issue_payout'], // 💸
+  ['\u{1F512}', 'close_account'], // 🔒
 ]);
-const VERDICT_KEYS: ReadonlySet<string> = new Set([
-  VERDICT,
-  MEASURED_COUNT,
-  MEASURED_VALUE,
-  DUPLICATE_COUNT,
-  REASON,
-]);
-const MEASUREMENT_KEYS: ReadonlySet<string> = new Set([
-  MEASURED_COUNT,
-  MEASURED_VALUE,
-  DUPLICATE_COUNT,
+const MEASUREMENT = '\u{1F9EE}'; // 🧮
+const VERDICT_KEYS: ReadonlyMap<string, EvaluatorVerdict['verdict']> = new Map([
+  ['\u{2705}', 'allow'], // ✅
+  ['\u{26D4}', 'deny'], // ⛔
 ]);
 
-/** Models add the variation selector to `⚖`, `♻`, `🗂`; every decoder drops one leading one. */
-const VARIATION_SELECTOR = '\uFE0F';
+/** Models add the variation selector to some symbols; every decoder drops one leading one. */
+const VARIATION_SELECTOR = '️';
 
-/* -------------------------------------------------------------------------- */
-/* Line parsing (obligations 1–5)                                              */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Split on `\n`, index by key. Line order is irrelevant (obligation 5); an unregistered
- * leading character, a repeated key, or a line with no key is terminal (obligations 2, 3).
- */
-function parseLines(
-  text: string,
-  registered: ReadonlySet<string>,
-): DecodeResult<ReadonlyMap<string, string>> {
-  const fields = new Map<string, string>();
-
-  for (const line of text.split('\n')) {
-    if (line.trim() === '') continue;
-
-    // The key is the line's first *codepoint*: most keys are surrogate pairs, so `line[0]`
-    // would read half of one. The guard above leaves only non-blank lines, so the array is
-    // non-empty — that invariant is stated in the type, since `noUncheckedIndexedAccess` is
-    // the only reason a first element would read as `undefined` here.
-    const [key] = Array.from(line) as [string, ...string[]];
-    if (!registered.has(key)) {
-      return { ok: false, error: `unregistered key for this direction: ${JSON.stringify(key)}` };
-    }
-    if (fields.has(key)) {
-      return { ok: false, error: `repeated key: ${key}` };
-    }
-
-    let value = line.slice(key.length);
-    if (value.startsWith(VARIATION_SELECTOR)) value = value.slice(1);
-    // Trailing whitespace only — leading whitespace is part of the value, and quotes are
-    // never stripped or interpreted (obligation 4).
-    fields.set(key, value.replace(/\s+$/u, ''));
-  }
-
-  return { ok: true, value: fields };
+interface Line {
+  key: string;
+  fields: string[];
 }
 
-/* -------------------------------------------------------------------------- */
-/* Numbers (obligation 8)                                                      */
-/* -------------------------------------------------------------------------- */
+/** Obligations 1–2: exactly one non-blank line, an accepted key, `|`-split trimmed fields. */
+function parseLine(text: string, accepted: ReadonlySet<string>, arity: number): DecodeResult<Line> {
+  const lines = text.split('\n').filter((line) => line.trim() !== '');
+  if (lines.length !== 1) {
+    return { ok: false, error: `expected one grammar line, got ${lines.length}` };
+  }
+  const line = lines[0]!.trim();
+  // The key is the first *codepoint*: most keys are surrogate pairs, so `line[0]` would read half.
+  const key = Array.from(line)[0];
+  if (key === undefined || !accepted.has(key)) {
+    return { ok: false, error: `unregistered key for this direction: ${JSON.stringify(key)}` };
+  }
+  let rest = line.slice(key.length);
+  if (rest.startsWith(VARIATION_SELECTOR)) rest = rest.slice(1);
+  const fields = rest.trim() === '' ? [] : rest.split('|').map((field) => field.trim());
+  if (fields.length !== arity) {
+    return { ok: false, error: `${key} expects ${arity} fields, got ${fields.length}` };
+  }
+  return { ok: true, value: { key, fields } };
+}
 
-/**
- * A bare non-negative integer. `+1`, `-1`, `1.0` and `1 ` are all parse failures, and so is a
- * digit string past `Number.MAX_SAFE_INTEGER`: `Number` rounds it silently, and a rounded
- * count presented as a measured one is the inference Constitution II forbids.
- */
+/** A bare non-negative integer. `+1`, `-1` and `1.0` are parse failures. */
 function parseInteger(raw: string): number | null {
-  if (!/^\d+$/u.test(raw)) return null;
-  const value = Number(raw);
-  return Number.isSafeInteger(value) ? value : null;
+  return /^\d+$/u.test(raw) ? Number(raw) : null;
 }
 
 /**
  * `#.##` dollars → integer cents. `$840.00`, `840`, `840.0` and `1,204.00` are parse
- * failures. The conversion is integer arithmetic on the two halves of the literal: a
- * float multiply of the parsed decimal loses cents at ledger-sized amounts. An amount whose
- * cents fall past `Number.MAX_SAFE_INTEGER` fails for the same reason `parseInteger` rejects
- * one: a silently rounded figure must not reach a verdict.
+ * failures. Integer arithmetic on the two halves: a float multiply loses cents at
+ * ledger-sized amounts.
  */
 function parseCents(raw: string): number | null {
   if (!/^\d+\.\d{2}$/u.test(raw)) return null;
   const point = raw.length - 3;
-  const cents = Number(raw.slice(0, point)) * 100 + Number(raw.slice(point + 1));
-  return Number.isSafeInteger(cents) ? cents : null;
+  return Number(raw.slice(0, point)) * 100 + Number(raw.slice(point + 1));
 }
 
-function missing(key: string): string {
-  return `missing required key: ${key}`;
+function parseTriple(fields: readonly string[]): DecodeResult<MeasuredTriple> {
+  const measured_count = parseInteger(fields[0]!);
+  if (measured_count === null) return { ok: false, error: 'malformed measured_count' };
+  const measured_value_cents = parseCents(fields[1]!);
+  if (measured_value_cents === null) return { ok: false, error: 'malformed measured_value' };
+  const duplicate_count = parseInteger(fields[2]!);
+  if (duplicate_count === null) return { ok: false, error: 'malformed duplicate_count' };
+  return { ok: true, value: { measured_count, measured_value_cents, duplicate_count } };
 }
 
-function badNumber(key: string): string {
-  return `malformed number for key: ${key}`;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Decoders                                                                    */
-/* -------------------------------------------------------------------------- */
-
-/**
- * The acting agent's proposal. All four keys are required; their absence escalates at the
- * caller (obligation 7, FR-002). `🧾measure` is rejected because `measure` is not one of the
- * three action names — it belongs to the measurement request, not to a proposal.
- */
+/** The acting agent's proposal: `🧾`/`💸`/`🔒` then `criteria | declared_count | declared_value`. */
 export function decodeProposal(text: string): DecodeResult<ProposedAction> {
-  const parsed = parseLines(text, PROPOSAL_KEYS);
+  const parsed = parseLine(text, new Set(PROPOSAL_KEYS.keys()), 3);
   if (!parsed.ok) return parsed;
-  const fields = parsed.value;
-
-  const action = fields.get(ACTION);
-  if (action === undefined) return { ok: false, error: missing(ACTION) };
-  if (action !== 'bulk_refund' && action !== 'issue_payout' && action !== 'close_account') {
-    return { ok: false, error: `unknown action for key ${ACTION}: ${JSON.stringify(action)}` };
-  }
-
-  const criteria = fields.get(CRITERIA);
-  if (criteria === undefined) return { ok: false, error: missing(CRITERIA) };
-
-  const rawCount = fields.get(DECLARED_COUNT);
-  if (rawCount === undefined) return { ok: false, error: missing(DECLARED_COUNT) };
+  const [criteria, rawCount, rawValue] = parsed.value.fields as [string, string, string];
+  if (criteria === '') return { ok: false, error: 'empty criteria' };
   const declared_count = parseInteger(rawCount);
-  if (declared_count === null) return { ok: false, error: badNumber(DECLARED_COUNT) };
-
-  const rawValue = fields.get(DECLARED_VALUE);
-  if (rawValue === undefined) return { ok: false, error: missing(DECLARED_VALUE) };
+  if (declared_count === null) return { ok: false, error: 'malformed declared_count' };
   const declared_value_cents = parseCents(rawValue);
-  if (declared_value_cents === null) return { ok: false, error: badNumber(DECLARED_VALUE) };
-
+  if (declared_value_cents === null) return { ok: false, error: 'malformed declared_value' };
   return {
     ok: true,
-    value: { action, criteria, declared_count, declared_value_cents },
+    value: { action: PROPOSAL_KEYS.get(parsed.value.key)!, criteria, declared_count, declared_value_cents },
   };
 }
 
 /**
- * The `🧮`/`💰`/`♻` triple, all three required (obligation 3). It is `measure.py`'s whole
- * output and, on a verdict, the citation — the same three keys parsed the same way.
- */
-function decodeTriple(fields: ReadonlyMap<string, string>): DecodeResult<MeasuredTriple> {
-  const rawCount = fields.get(MEASURED_COUNT);
-  if (rawCount === undefined) return { ok: false, error: missing(MEASURED_COUNT) };
-  const measured_count = parseInteger(rawCount);
-  if (measured_count === null) return { ok: false, error: badNumber(MEASURED_COUNT) };
-
-  const rawValue = fields.get(MEASURED_VALUE);
-  if (rawValue === undefined) return { ok: false, error: missing(MEASURED_VALUE) };
-  const measured_value_cents = parseCents(rawValue);
-  if (measured_value_cents === null) return { ok: false, error: badNumber(MEASURED_VALUE) };
-
-  const rawDuplicates = fields.get(DUPLICATE_COUNT);
-  if (rawDuplicates === undefined) return { ok: false, error: missing(DUPLICATE_COUNT) };
-  const duplicate_count = parseInteger(rawDuplicates);
-  if (duplicate_count === null) return { ok: false, error: badNumber(DUPLICATE_COUNT) };
-
-  return { ok: true, value: { measured_count, measured_value_cents, duplicate_count } };
-}
-
-/**
- * The Evaluator's verdict. `⚖` is required and accepts `allow` and `deny` only:
- * `⚖escalate` is a parse failure because escalation is written by the system's `decide()`,
- * never by the Evaluator (obligation 9, research D-06). `📝` is optional.
- *
- * The `🧮`/`💰`/`♻` citation is **required**, not optional: the registry says `⚖allow` and
- * `⚖deny` require all three in the same message, and a missing required key is a parse
- * failure (obligation 3). A verdict without measured figures is a Constitution II violation,
- * not an incomplete message, so it never decodes — partial or wholly absent alike. The
- * failure reaches `decide()` rule 4 as "did not decode as a verdict" and yields a `Guidance`.
+ * The Evaluator's verdict: `✅`/`⛔` then the measured triple and a non-empty reason. There
+ * is no escalate key — escalation is written by the system's `decide()`, never by the
+ * Evaluator (obligation 8, research D-06).
  */
 export function decodeVerdict(text: string): DecodeResult<EvaluatorVerdict> {
-  const parsed = parseLines(text, VERDICT_KEYS);
+  const parsed = parseLine(text, new Set(VERDICT_KEYS.keys()), 4);
   if (!parsed.ok) return parsed;
-  const fields = parsed.value;
-
-  const verdict = fields.get(VERDICT);
-  if (verdict === undefined) return { ok: false, error: missing(VERDICT) };
-  if (verdict !== 'allow' && verdict !== 'deny') {
-    return {
-      ok: false,
-      error: `key ${VERDICT} accepts allow or deny only: ${JSON.stringify(verdict)}`,
-    };
-  }
-
-  const cited = decodeTriple(fields);
+  const cited = parseTriple(parsed.value.fields);
   if (!cited.ok) return cited;
-
-  return { ok: true, value: { verdict, reason: fields.get(REASON) ?? null, cited: cited.value } };
+  const reason = parsed.value.fields[3]!;
+  if (reason === '') return { ok: false, error: 'empty reason' };
+  return { ok: true, value: { verdict: VERDICT_KEYS.get(parsed.value.key)!, reason, cited: cited.value } };
 }
 
 /**
- * `measure.py` stdout — exactly `🧮`, `💰`, `♻`, all three required (obligation 6). This is
- * the executors' decoder and runs nowhere else: the Bench builds `observed` from the
- * `measure` tool's `structuredContent`, never from its text.
+ * `measure.py` stdout — `🧮count | value | duplicates` (obligation 5). The executors'
+ * decoder; the Bench builds `observed` from the `measure` tool's `structuredContent`.
  */
 export function decodeMeasurement(text: string): DecodeResult<MeasuredTriple> {
-  const parsed = parseLines(text, MEASUREMENT_KEYS);
+  const parsed = parseLine(text, new Set([MEASUREMENT]), 3);
   if (!parsed.ok) return parsed;
-  return decodeTriple(parsed.value);
+  return parseTriple(parsed.value.fields);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Encoder                                                                     */
-/* -------------------------------------------------------------------------- */
-
-/**
- * One line per field, key first, no padding (encoder obligation 1). A value containing a
- * newline is a programming error, not an escapable case: multi-line values are
- * unrepresentable by design, so this throws rather than truncating or escaping
- * (obligation 3). The message names the key, never the value.
- */
-function line(key: string, value: string): string {
-  if (value.includes('\n')) {
-    throw new Error(`grammar: the value for key ${key} contains a newline and cannot be encoded`);
+/** A value containing `\n` or `|` is a programming error: unrepresentable, so throw (encoder obligation 3). */
+function field(value: string): string {
+  if (value.includes('\n') || value.includes('|')) {
+    throw new Error('grammar: a field value contains a newline or a | and cannot be encoded');
   }
-  return key + value;
+  return value;
 }
 
-/** Integer cents → `#.##`. The dividend is a multiple of 100 by construction, so no float. */
-function dollars(cents: number): string {
+/** Integer cents → `#.##`. */
+export function dollars(cents: number): string {
   const fraction = cents % 100;
-  const whole = (cents - fraction) / 100;
-  return `${whole}.${String(fraction).padStart(2, '0')}`;
+  return `${(cents - fraction) / 100}.${String(fraction).padStart(2, '0')}`;
+}
+
+function encodeLine(key: string, fields: readonly string[]): string {
+  return key + fields.map(field).join(' | ');
+}
+
+function keyOf<V>(keys: ReadonlyMap<string, V>, value: V): string {
+  for (const [key, v] of keys) if (v === value) return key;
+  throw new Error(`grammar: no key for ${String(value)}`);
 }
 
 export function encodeProposal(p: ProposedAction): string {
-  return [
-    line(ACTION, p.action),
-    line(CRITERIA, p.criteria),
-    line(DECLARED_COUNT, String(p.declared_count)),
-    line(DECLARED_VALUE, dollars(p.declared_value_cents)),
-  ].join('\n');
+  return encodeLine(keyOf(PROPOSAL_KEYS, p.action), [
+    p.criteria,
+    String(p.declared_count),
+    dollars(p.declared_value_cents),
+  ]);
+}
+
+function tripleFields(t: MeasuredTriple): string[] {
+  return [String(t.measured_count), dollars(t.measured_value_cents), String(t.duplicate_count)];
 }
 
 export function encodeMeasurement(t: MeasuredTriple): string {
-  return [
-    line(MEASURED_COUNT, String(t.measured_count)),
-    line(MEASURED_VALUE, dollars(t.measured_value_cents)),
-    line(DUPLICATE_COUNT, String(t.duplicate_count)),
-  ].join('\n');
+  return encodeLine(MEASUREMENT, tripleFields(t));
 }
 
 /**
- * Encoder obligation 2 is satisfied by the type, not by a runtime check: `Verdict`'s
- * `allow`/`deny` branch carries a non-null `Measurement`, so `⚖allow`/`⚖deny` cannot be
- * encoded without `🧮`, `💰` and `♻`. Only `escalate` may have no evidence, and it is the
- * system's own rendering of a verdict — never something the Evaluator wrote.
+ * Encoder obligation 2 is satisfied by the type: only the `allow`/`deny` branch of `Verdict`
+ * is accepted, and it carries a non-null `Measurement`. `escalate` has no wire form.
  */
-export function encodeVerdict(v: Verdict): string {
-  const lines = [line(VERDICT, v.verdict)];
-  if (v.evidence !== null) lines.push(encodeMeasurement(v.evidence));
-  lines.push(line(REASON, v.reason));
-  return lines.join('\n');
+export function encodeVerdict(v: Extract<Verdict, { verdict: 'allow' | 'deny' }>): string {
+  return encodeLine(keyOf(VERDICT_KEYS, v.verdict), [...tripleFields(v.evidence), v.reason]);
 }

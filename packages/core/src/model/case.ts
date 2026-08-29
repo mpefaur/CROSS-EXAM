@@ -23,13 +23,13 @@ export function tableFor(action: ActionName): LedgerTable {
 
 /** data-model §4 — what the acting agent emits, decoded from the emoji grammar. */
 export interface ProposedAction {
-  /** `🧾` */
+  /** The key: `🧾` bulk_refund, `💸` issue_payout, `🔒` close_account. */
   action: ActionName;
-  /** `🔍` — a Criteria expression (data-model §5). */
+  /** Field 1 — a Criteria expression (data-model §5). */
   criteria: string;
-  /** `🔢` — >= 0. Missing is a parse failure, and a parse failure escalates (FR-002). */
+  /** Field 2 — >= 0. Missing is a parse failure, and a parse failure escalates (FR-002). */
   declared_count: number;
-  /** `💵` — >= 0, integer cents parsed from `#.##` dollars. */
+  /** Field 3 — >= 0, integer cents parsed from `#.##` dollars. */
   declared_value_cents: number;
 }
 
@@ -108,15 +108,15 @@ export interface MeasureAttempt {
 
 /**
  * data-model §9 — what `decodeVerdict` returns. Nothing in it is produced by code.
- * `escalate` is not in the Evaluator's grammar; a `⚖escalate` from it is a parse failure.
+ * `escalate` has no key in the grammar; the Evaluator cannot write it.
  */
 export interface EvaluatorVerdict {
-  /** The `⚖` line. */
+  /** The key: `✅` allow, `⛔` deny. */
   verdict: 'allow' | 'deny';
-  /** The `📝` line. */
-  reason: string | null;
-  /** The `🧮`/`💰`/`♻` lines; required on `allow`/`deny`. */
-  cited: MeasuredTriple | null;
+  /** Field 4. */
+  reason: string;
+  /** Fields 1–3; the line does not parse without them. */
+  cited: MeasuredTriple;
 }
 
 /** data-model §9 — which rule of research D-06 produced the outcome. */
@@ -143,7 +143,7 @@ export interface Guidance {
 export type Verdict =
   | {
       verdict: 'allow' | 'deny';
-      /** The Evaluator's `📝`. */
+      /** The Evaluator's `reason` field. */
       reason: string;
       /** `observed.result` — never null on this branch. */
       evidence: Measurement;
