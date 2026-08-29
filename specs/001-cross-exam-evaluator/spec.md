@@ -31,6 +31,10 @@ cancelled outright if the P1 loop has not closed by the 14:30 PDT cutline
 - Q: If the external sandbox is unreachable during the demo, fall back or escalate? → A: Local isolated executor behind the same interface; the sandbox stays the default
 - Q: How long may a single measurement run before the Evaluator gives up on it? → A: 20 seconds per attempt
 
+### Session 2026-08-29
+
+- Q: One emoji per field, or one emoji per tool call? → A: One emoji per message kind — the tool being called, the measurement, or the verdict — with its fields following in fixed order, `|`-separated, on one line. Seven keys: `🧾` `💸` `🔒` `📏` `🧮` `✅` `⛔`. No generic "action" key, no field keys. `escalate` has no key: it never crosses the wire
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - The measured denial loop (Priority: P1)
@@ -277,8 +281,8 @@ earlier verdict is retrievable.
   measurement contradicts — is a
   tool-usage mistake, not a data condition: the system MUST return it to the Evaluator with
   the measured figures as guidance and read the re-issued verdict, and MUST NOT execute on
-  it. The Evaluator does not decide escalation: a `⚖escalate` it writes is a malformed verdict
-  and is returned as guidance like any other. Guidance is given a configured number of times per held action; the
+  it. The Evaluator does not decide escalation: it has no key for it, and a message under any
+  other key is a malformed verdict returned as guidance like any other. Guidance is given a configured number of times per held action; the
   next incorrect verdict means no valid verdict can be obtained and the action escalates.
 - **FR-012**: A `deny` verdict MUST carry a reason containing the measured figures, and
   that reason MUST be delivered to the acting agent.
@@ -324,18 +328,20 @@ earlier verdict is retrievable.
 
 **Proposal and verdict encoding**
 
-- **FR-024**: The proposal the acting agent emits, and the `📝` reason text the Evaluator
-  produces for a denial, MUST use a flat, emoji-keyed grammar — each field introduced by a unicode emoji that
-  names it, one field per line, no nested structures, and no JSON-escaped payload inside
-  any field. The selection criteria, the declared count, and the declared value each carry
-  their own emoji key. Emoji keys are chosen because they are compact and visually
-  unambiguous: they cost fewer tokens than a spelled-out field name and they raise parse
-  accuracy on small models. The key set is the registry in
-  [docs/emoji-grammar.md](../../docs/emoji-grammar.md), which is the single source of
-  truth both agents encode and decode against.
-- **FR-025**: A proposal that does not parse under that grammar MUST NOT be re-parsed
-  under a looser one, and no undelimited field value may be inferred. An unparseable
-  proposal yields no measurement and therefore `escalate` under FR-010.
+- **FR-024**: The proposal the acting agent emits, the measurement request and result, and
+  the verdict the Evaluator produces MUST each be one line in a flat, emoji-keyed grammar:
+  one leading unicode emoji names the message kind — the tool being called, the
+  measurement, or the verdict — and its fields follow in a fixed order, delimited, with no
+  nested structures and no JSON-escaped payload inside any field. One emoji per tool; never
+  a generic "action" key with the tool name as a value, and never one key per field. The
+  proposal's fields are the selection criteria, the declared count, and the declared value.
+  The key set, the delimiter, arities and field order are the registry in
+  [docs/emoji-grammar.md](../../docs/emoji-grammar.md), the single source of truth both
+  agents encode and decode against.
+- **FR-025**: A message that does not parse under that grammar MUST NOT be re-parsed
+  under a looser one, and no undelimited field value may be inferred: a field count other
+  than the key's arity is a parse failure. An unparseable proposal yields no measurement and
+  therefore `escalate` under FR-010.
 
 ### Key Entities
 
@@ -416,9 +422,10 @@ These are decisions taken from [docs/research-findings.md](../../docs/research-f
   *nesting × heterogeneity × cleverness*: a field holding JSON-escaped content must be
   re-parsed, and a failed re-parse is a lost tool call. Its top-ranked format keys each
   field with an emoji (`🔍2=7`) rather than spelling the field out — cheaper in tokens and
-  more reliably emitted by small models, which is why we adopt it. Our proposal carries
-  selection criteria plus two declared figures — few enough fields that the thinnest
-  grammar wins.
+  more reliably emitted by small models. We take the emoji key one step further: one emoji
+  names the whole message — the tool or the verdict — and the few fields follow in fixed
+  order, so nothing is spelled at all. Our proposal carries selection criteria plus two
+  declared figures — few enough fields that the thinnest grammar wins.
   Two deviations are accepted deliberately and MUST be recorded in `plan.md` under
   Complexity Tracking: this is a *how* living in the spec (Constitution VII), and it
   prefers our own grammar over the harness's native tool-calls (Constitution III). The

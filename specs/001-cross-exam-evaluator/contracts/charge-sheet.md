@@ -47,32 +47,28 @@ the Bench escalates under rule 1 before any Evaluator turn; the Evaluator is not
 
 ## Evaluator → orchestrator
 
-Returned in the emoji grammar, not JSON — same registry, verdict direction:
+Returned in the emoji grammar, not JSON — one line, verdict key first, then the measured
+triple and the reason:
 
 ```
-⚖deny
-🧮1204
-💰96310.00
-♻611
-📝You declared 7 disputes for $840.00. Measured against the replica: 1204 charges,
-$96,310.00, of which 611 already carry a settled refund — those would be refunded twice
-and the processor does not reverse them. Narrow the criteria or justify the amount.
+⛔1204 | 96310.00 | 611 | You declared 7 disputes for $840.00. Measured against the replica: 1204 charges, $96,310.00, of which 611 already carry a settled refund — those would be refunded twice and the processor does not reverse them. Narrow the criteria or justify the amount.
 ```
 
 **Evaluator obligations**
-- MUST call `measure` (`🧾measure` / `🔍` / `🗂`, research D-15) with the proposal's **exact**
-  `🔍` and `tableFor(action)` before writing `⚖allow` or `⚖deny`; the Bench reads the last
+- MUST call `measure` (`📏<criteria> | <table>`, research D-15) with the proposal's **exact**
+  `criteria` and `tableFor(action)` before writing `✅` or `⛔`; the Bench reads the last
   such result as `observed`, and a verdict without one — or one measured on other criteria —
   is answered with guidance by rule 2a of research D-06, whatever the Evaluator wrote
   (FR-004); only a measurement that *fails* on the right criteria escalates (rule 2b).
-- `⚖allow` and `⚖deny` MUST carry `🧮`, `💰`, `♻` equal to what `measure` returned (FR-009,
+- `✅` and `⛔` MUST carry the three figures equal to what the `🧮` line returned (FR-009,
   Constitution II); a difference comes back as guidance under rule 4, and the verdict is re-issued.
-- An `escalate` is the system's, never the Evaluator's (a `⚖escalate` from it is rule-4
-  guidance); it carries `📝` and MAY carry the measured triple (rule 3 — threshold exceeded —
+- An `escalate` is the system's, never the Evaluator's — it has no key, and anything the
+  Evaluator writes under another key is rule-4 guidance; it carries a reason and MAY carry
+  the measured triple (rule 3 — threshold exceeded —
   has a measurement; rules 1 and 2b have none for this proposal; an escalation after exhausted
   guidance carries whatever `observed.result` was — rule 4/5 the proposal's measurement, rule 2a
   possibly one taken on other criteria, or nothing).
-- The `📝` reason on a `deny` MUST contain the measured figures, because that text is what
+- The `reason` field on a `⛔` MUST contain the measured figures, because that text is what
   the harness delivers back to the acting agent as `deny.reason` (FR-012).
 
 ## Resolution
@@ -86,7 +82,7 @@ Evaluator's next turn and runs `decide()` on the re-issued verdict, at most
 | Verdict | Harness action | Result |
 | --- | --- | --- |
 | `allow` | resolve approval `allow` | the action executes against production (FR-014) |
-| `deny` | resolve approval `deny` with `reason` = the `📝` text | the acting agent reads it and re-proposes (FR-015) |
+| `deny` | resolve approval `deny` with `reason` = the `⛔` line's `reason` field | the acting agent reads it and re-proposes (FR-015) |
 | `escalate` | **leave the approval pending**, render the verdict card | a human decides; no timeout auto-approves (FR-013, FR-014) |
 
 A second decision on a `case_id` already resolved is rejected; the first stands

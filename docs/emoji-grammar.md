@@ -4,7 +4,7 @@
 > [`specs/001-cross-exam-evaluator/spec.md`](../specs/001-cross-exam-evaluator/spec.md).
 > Both agents — the acting agent and the Evaluator — encode and decode against this table.
 > Changing a key mid-build breaks both sides at once.
-> Date: 2026-08-28.
+> Date: 2026-08-29 (supersedes the one-emoji-per-field form of 2026-08-28).
 
 ## Why
 
@@ -13,73 +13,87 @@ Adopted from [*The Minutiae of Tool-calling*](https://blog.can.ac/2026/08/03/the
 **nesting × heterogeneity × cleverness**. A field holding JSON-escaped content has to be
 re-parsed, and a failed re-parse is a lost tool call.
 
-The article's top-ranked format keys each field with an emoji (`🔍2=7`) instead of
-spelling the field name out. Two benefits, and they are the ones we are after:
+The article keys each field with an emoji. We take the emoji key and go one step thinner:
+**one emoji names the whole message** — the tool being called, or the verdict — and its few
+fields follow in a fixed order. No field name is spelled anywhere. Two benefits:
 
-1. **Fewer tokens** than a spelled-out field name, on every turn of both agents.
+1. **Fewer tokens** than a spelled-out tool name and field names, on every turn of both agents.
 2. **Higher accuracy on small models**: the key is a single unmistakable symbol, not a
-   word the model can paraphrase, pluralize, or translate.
+   word the model can paraphrase, pluralize, or translate — and there is exactly one of it.
 
 ## Format
 
-One line per field. No nesting. No JSON inside a field.
+One line per message. One emoji per line. No nesting. No JSON inside a field.
 
 ```
-<emoji><value>
+<emoji><field> | <field> | <field>
 ```
 
-- The emoji is the first character of the line; everything after it up to the newline is
-  the value, literal.
-- Values never contain newlines. A multi-line value is unrepresentable by design — if one
-  is needed, that is a sign the field is modeled wrong.
-- Line order is free. The parser indexes by key, not by position.
-- An unknown key, or a line with no key, means the proposal does not parse (FR-025).
-- A message that carries a `🧾` line **is a tool call**. The patched harness
-  ([research.md](../specs/001-cross-exam-evaluator/research.md) D-14) invokes the tool the
-  value names; the other proposal lines are its arguments. No JSON or XML wrapper exists —
-  that is the point of the grammar.
+- The emoji is the first codepoint of the line and names the message kind. Everything
+  after it is the field list, split on `|`; each field is trimmed of surrounding
+  whitespace. `🧾status=disputed | 7 | 840.00` and `🧾status=disputed|7|840.00` are the same
+  message.
+- Each key has a fixed **arity**. A field count other than the arity is a parse failure
+  (FR-025). A `|` inside a value is therefore unrepresentable by design.
+- Values never contain newlines. A grammar message is exactly one non-blank line; a second
+  non-blank line is a parse failure.
+- One leading `U+FE0F` after the emoji is dropped (models add the variation selector to
+  some symbols; every decoder and the D-14 adapter tolerate it).
+- An unknown key, or a line with no key, means the message does not parse (FR-025).
+- A message whose key is a **tool** key *is a tool call*. The patched harness
+  ([research.md](../specs/001-cross-exam-evaluator/research.md) D-14) invokes that tool with
+  the fields as its arguments, by position. No JSON or XML wrapper exists — that is the
+  point of the grammar.
 
-## Key registry
+## Key registry — seven keys
 
-### Proposal — acting agent → Evaluator
+### Tool calls — acting agent → held action
 
-| Emoji | Codepoint | Field            | Type    | Example                          |
-| ----- | --------- | ---------------- | ------- | -------------------------------- |
-| 🧾    | `U+1F9FE` | `action`         | string  | `🧾bulk_refund`                  |
-| 🔍    | `U+1F50D` | `criteria`       | string  | `🔍status=disputed AND age_days<=30` |
-| 🔢    | `U+1F522` | `declared_count` | integer | `🔢7`                            |
-| 💵    | `U+1F4B5` | `declared_value` | decimal | `💵840.00`                       |
+| Emoji | Codepoint | Tool            | Fields (in order)                                 | Example                                      |
+| ----- | --------- | --------------- | ------------------------------------------------- | -------------------------------------------- |
+| 🧾    | `U+1F9FE` | `bulk_refund`   | `criteria` \| `declared_count` \| `declared_value` | `🧾status=disputed AND age_days<=30 \| 7 \| 840.00` |
+| 💸    | `U+1F4B8` | `issue_payout`  | same three                                         | `💸payout_eligible=true \| 342 \| 418220.00` |
+| 🔒    | `U+1F512` | `close_account` | same three                                         | `🔒customer_id=cus_0042 \| 1 \| 0.00`        |
 
-All four are required. A missing key is a parse failure and the Bench escalates (FR-002,
-FR-025). The harness validates nothing (research D-14).
+`criteria` is a predicate ([data-model.md](../specs/001-cross-exam-evaluator/data-model.md) §5).
+`declared_count` is a bare non-negative integer; `declared_value` is `#.##` dollars. All
+three fields are required: arity 3. Fewer fields is a parse failure and the Bench escalates
+(FR-002, FR-025). The harness validates nothing (research D-14).
 
-### Measurement request — Evaluator → `measure` tool
+### Tool call — Evaluator → `measure` tool
 
-| Emoji | Codepoint | Field      | Type                    | Example              |
-| ----- | --------- | ---------- | ----------------------- | -------------------- |
-| 🧾    | `U+1F9FE` | `action`   | `measure`               | `🧾measure`          |
-| 🔍    | `U+1F50D` | `criteria` | string                  | `🔍status=disputed`  |
-| 🗂     | `U+1F5C2` | `table`    | `charges` \| `payouts` | `🗂charges`          |
+| Emoji | Codepoint | Tool      | Fields (in order)          | Example                          |
+| ----- | --------- | --------- | -------------------------- | -------------------------------- |
+| 📏    | `U+1F4CF` | `measure` | `criteria` \| `table`      | `📏status=disputed \| charges`   |
 
-Same keys as the proposal where the field is the same; `🗂` is the one addition
-(research D-15).
+`table` is `charges` or `payouts`. Arity 2.
 
-### Verdict and measurement — Evaluator → acting agent
+### Measurement — `measure.py` stdout → `measure` tool result → Evaluator
 
-| Emoji | Codepoint | Field             | Type                            | Example                      |
-| ----- | --------- | ----------------- | ------------------------------- | ---------------------------- |
-| ⚖     | `U+2696`  | `verdict`         | `allow` \| `deny` (Evaluator) · `escalate` (system only) | `⚖deny`                      |
-| 🧮    | `U+1F9EE` | `measured_count`  | integer                         | `🧮1204`                     |
-| 💰    | `U+1F4B0` | `measured_value`  | decimal                         | `💰96310.00`                 |
-| ♻     | `U+267B`  | `duplicate_count` | integer                         | `♻611`                       |
-| 📝    | `U+1F4DD` | `reason`          | string                          | `📝1204 charges, $96,310...` |
+| Emoji | Codepoint | Meaning       | Fields (in order)                                        | Example                       |
+| ----- | --------- | ------------- | -------------------------------------------------------- | ----------------------------- |
+| 🧮    | `U+1F9EE` | measurement   | `measured_count` \| `measured_value` \| `duplicate_count` | `🧮1204 \| 96310.00 \| 611`  |
 
-`⚖allow` and `⚖deny` require `🧮`, `💰`, and `♻` in the same message — a verdict without
-measured figures is a Constitution II violation, not an incomplete message.
+The only line `measure.py` prints. Arity 3. `measured_value` is `#.##` dollars.
+`duplicate_count` is the rows already irreversibly acted on. Produced only by executed code
+(Constitution II).
 
-`⚖escalate` is never written by the Evaluator — escalation is the system's decision
-(research D-06); `decodeVerdict` rejects it. It appears only in the system's own rendering
-of a verdict.
+### Verdicts — Evaluator → Bench
+
+| Emoji | Codepoint | Verdict | Fields (in order)                                                     | Example                                            |
+| ----- | --------- | ------- | --------------------------------------------------------------------- | -------------------------------------------------- |
+| ✅    | `U+2705`  | `allow` | `measured_count` \| `measured_value` \| `duplicate_count` \| `reason` | `✅7 \| 840.00 \| 0 \| Measured figures match the declaration` |
+| ⛔    | `U+26D4`  | `deny`  | same four                                                              | `⛔1204 \| 96310.00 \| 611 \| You declared 7 for $840.00; …` |
+
+`✅` and `⛔` carry the measured triple **copied from the `🧮` line** — a verdict without
+measured figures is a Constitution II violation, not an incomplete message. Arity 4; the
+`reason` is the fourth field and is what the harness delivers back to the acting agent on a
+`⛔` (FR-012).
+
+**Escalation has no key.** `escalate` is the system's decision (research D-06), never a
+message either agent writes, so it never crosses the wire and no decoder accepts it. The
+Bench renders it in its trace as `⚖` (`U+2696`) beside the figures it holds — a display
+convention, not a grammar key.
 
 ## Rules for choosing a key
 
@@ -87,36 +101,38 @@ When adding a new key, in this order:
 
 1. **A single codepoint.** No ZWJ sequences (`👨‍👩‍👧`), no skin-tone modifiers, no flags.
    They are several tokens and get mangled on re-serialization.
-2. **No variation selector `U+FE0F`.** This is why the registry uses `⚖` (`U+2696`) and
-   not `⚖️` (`U+2696 U+FE0F`), and `♻` and not `♻️`. It costs an extra token and survives
-   round-trips poorly. Models add it anyway, so every decoder and the D-14 adapter drop one
-   leading `U+FE0F` from a value ([wire-grammar.md](../specs/001-cross-exam-evaluator/contracts/wire-grammar.md) obligation 1).
-3. **Distinguishable from the rest of the table** at a glance. `💵` declared vs `💰`
-   measured is the closest pair we have; it is accepted because they never travel in the
-   same message.
-4. **Verify the real token count** with the provider's tokenizer before freezing the key.
+2. **No variation selector `U+FE0F`.** Models add it to some symbols anyway, so every
+   decoder and the D-14 adapter drop one leading `U+FE0F`
+   ([wire-grammar.md](../specs/001-cross-exam-evaluator/contracts/wire-grammar.md) obligation 1).
+3. **One emoji per tool.** A tool's key is the tool. Never a generic "action" key with the
+   tool name as a value, and never one key per field.
+4. **Distinguishable from the rest of the table** at a glance.
+5. **Verify the real token count** with the provider's tokenizer before freezing the key.
    The saving is this format's whole reason to exist; it is not assumed.
-5. **Never reuse** an emoji already listed for another field, not even in the other
-   direction.
+6. **Never reuse** an emoji already listed for another message kind.
 
 ## Registry as configuration
 
-The harness adapter (research D-14) reads this table from `CROSSEXAM_GRAMMAR_REGISTRY`,
-not from code. The value mirrors the tables above plus two reserved entries:
+The harness adapter (research D-14) reads the **tool** keys from `CROSSEXAM_GRAMMAR_REGISTRY`,
+not from code: emoji → `[tool_name, ...argument_names]`, one entry per tool key, argument
+names in field order. The measurement and verdict keys are not tool calls and are not in it;
+the Bench decodes those.
 
 ```json
-{"$tools":["bulk_refund","issue_payout","close_account","measure"],
- "🧾":"$tool","🔍":"criteria","🔢":"declared_count","💵":"declared_value","🗂":"table"}
+{"🧾":["bulk_refund","criteria","declared_count","declared_value"],
+ "💸":["issue_payout","criteria","declared_count","declared_value"],
+ "🔒":["close_account","criteria","declared_count","declared_value"],
+ "📏":["measure","criteria","table"]}
 ```
 
 A key added here is added there in the same PR (§ Maintenance).
 
 ## Invariant
 
-No ledger value contains emoji — they are charge ids, amounts, dates, and statuses. That
-is why no escaping is needed: a key can never appear inside a value. If the ledger ever
-accepts free-form customer text, this invariant falls and the grammar must be revisited
-before the parser is.
+No ledger value contains an emoji or a `|` — they are charge ids, amounts, dates, and
+statuses. That is why no escaping is needed: a key can never appear inside a value, and a
+value can never split. If the ledger ever accepts free-form customer text, this invariant
+falls and the grammar must be revisited before the parser is.
 
 ## Maintenance
 

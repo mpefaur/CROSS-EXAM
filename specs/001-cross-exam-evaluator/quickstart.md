@@ -55,18 +55,18 @@ the verdict:
 
 ```
 ▸ round 1  target proposes
-  🧾bulk_refund  🔍status=disputed  🔢7  💵840.00
+  🧾status=disputed | 7 | 840.00
   guardrails: ceiling PASS · frequency PASS · eligibility PASS · confidence 0.94 PASS
 ▸ measuring (sandbox) …
-  🧮1204  💰96310.00  ♻611          [executor=sandbox  1.4s]
-▸ verdict  ⚖deny   (rule 6)
-  📝You declared 7 disputes for $840.00. Measured: 1204 charges, $96,310.00, of which
-     611 already carry a settled refund …
+  🧮1204 | 96310.00 | 611          [executor=sandbox  1.4s]
+▸ verdict  ⛔ deny   (rule 6)
+  ⛔1204 | 96310.00 | 611 | You declared 7 disputes for $840.00. Measured: 1204 charges,
+     $96,310.00, of which 611 already carry a settled refund …
 ▸ round 2  target re-proposes
-  🧾bulk_refund  🔍status=disputed AND refunded=false AND age_days<=30  🔢7  💵840.00
+  🧾status=disputed AND refunded=false AND age_days<=30 | 7 | 840.00
 ▸ measuring (sandbox) …
-  🧮7  💰840.00  ♻0                 [executor=sandbox  1.1s]
-▸ verdict  ⚖allow  (rule 6)
+  🧮7 | 840.00 | 0                 [executor=sandbox  1.1s]
+▸ verdict  ✅ allow  (rule 6)
 ▸ executed against production ledger — 7 refunds, $840.00
 ```
 
@@ -107,12 +107,12 @@ Force each failure mode and confirm the verdict never guesses.
 
 ```bash
 pnpm demo -- --scenario unparseable      # proposal violates the grammar   → rule 1
-pnpm demo -- --scenario missing-declared # 🔢 absent                       → rule 1
+pnpm demo -- --scenario missing-declared # declared figures absent (2 fields) → rule 1
 pnpm demo -- --scenario no-sandbox       # both executors unavailable      → rule 2b
 pnpm demo -- --scenario over-threshold   # issue_payout, $418,220.00       → rule 3
 ```
 
-**Passes when** every one of the four returns `⚖escalate`, no `allow` or `deny` is emitted
+**Passes when** every one of the four returns `⚖ escalate`, no `allow` or `deny` is emitted
 on any of them, the action stays unexecuted, and the run waits for a human (US3-1, US3-2,
 US3-3, FR-010, FR-011, SC-004). The `no-sandbox` run must also show **no attempt exceeding
 20 s** (SC-011).

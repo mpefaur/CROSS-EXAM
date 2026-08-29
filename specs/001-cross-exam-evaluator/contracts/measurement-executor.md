@@ -13,12 +13,10 @@ inside a sandbox on venue wifi).
 python3 measure.py --ledger <path.json> --table <charges|payouts> --criteria '<expr>'
 ```
 
-**stdout** — the measurement, in the emoji grammar, and nothing else:
+**stdout** — the measurement, one line in the emoji grammar, and nothing else:
 
 ```
-🧮1204
-💰96310.00
-♻611
+🧮1204 | 96310.00 | 611
 ```
 
 **Exit codes**
@@ -30,7 +28,7 @@ python3 measure.py --ledger <path.json> --table <charges|payouts> --criteria '<e
 | `3` | ledger file missing or malformed | `null` — no measurement |
 | other | any failure | `null` — no measurement |
 
-`♻` counts rows matching the criteria that are **already irreversibly acted on** —
+The third field, `duplicate_count`, counts rows matching the criteria that are **already irreversibly acted on** —
 `refunded=true` for `charges`. It is the duplicate trap, and it is counted by the script,
 never inferred.
 
@@ -63,13 +61,13 @@ Two implementations, one behind each transport:
 
 `measure`, on the read-only server `packages/measure` (`@crossexam/measure`, research D-15),
 attached only to the Evaluator. Arguments `criteria` and `table` (strings; the harness passes
-them from the `🔍` and `🗂` lines). Non-destructive: no approval. It runs the resolution order
+them from the two fields of the `📏` line). Non-destructive: no approval. It runs the resolution order
 below. It opens only `CROSSEXAM_REPLICA_PATH` and listens on `CROSSEXAM_MEASURE_SERVER_URL`
 (data-model §12).
 
 | Outcome | `isError` | text content | `structuredContent` |
 | --- | --- | --- | --- |
-| measurement produced | `false` | the script's three lines, verbatim — what the Evaluator reads and cites | the full `Measurement` (data-model §8): `{ criteria, table, measured_count, measured_value_cents, duplicate_count, executor, duration_ms, script_sha256 }` |
+| measurement produced | `false` | the script's `🧮` line, verbatim — what the Evaluator reads and cites | the full `Measurement` (data-model §8): `{ criteria, table, measured_count, measured_value_cents, duplicate_count, executor, duration_ms, script_sha256 }` |
 | no measurement — exit `2`, exit `3`, or both executors failed / timed out | `true` | one reason line: `criteria did not parse: <detail>` · `ledger malformed: <detail>` · `both executors failed within 20 s` | `{ criteria, table, executor: null }` |
 
 `criteria` and `table` are always present, copied from the call's own arguments, so the Bench
