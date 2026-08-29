@@ -1,0 +1,19 @@
+{
+  "name": "@crossexam/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "seed": "tsx src/ledger/generate.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "4.5.2"
+  },
+  "devDependencies": {
+    "tsx": "4.23.12",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
