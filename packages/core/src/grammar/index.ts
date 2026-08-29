@@ -105,20 +105,29 @@ function parseLines(
 /* Numbers (obligation 8)                                                      */
 /* -------------------------------------------------------------------------- */
 
-/** A bare non-negative integer. `+1`, `-1`, `1.0` and `1 ` are all parse failures. */
+/**
+ * A bare non-negative integer. `+1`, `-1`, `1.0` and `1 ` are all parse failures, and so is a
+ * digit string past `Number.MAX_SAFE_INTEGER`: `Number` rounds it silently, and a rounded
+ * count presented as a measured one is the inference Constitution II forbids.
+ */
 function parseInteger(raw: string): number | null {
-  return /^\d+$/u.test(raw) ? Number(raw) : null;
+  if (!/^\d+$/u.test(raw)) return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) ? value : null;
 }
 
 /**
  * `#.##` dollars → integer cents. `$840.00`, `840`, `840.0` and `1,204.00` are parse
  * failures. The conversion is integer arithmetic on the two halves of the literal: a
- * float multiply of the parsed decimal loses cents at ledger-sized amounts.
+ * float multiply of the parsed decimal loses cents at ledger-sized amounts. An amount whose
+ * cents fall past `Number.MAX_SAFE_INTEGER` fails for the same reason `parseInteger` rejects
+ * one: a silently rounded figure must not reach a verdict.
  */
 function parseCents(raw: string): number | null {
   if (!/^\d+\.\d{2}$/u.test(raw)) return null;
   const point = raw.length - 3;
-  return Number(raw.slice(0, point)) * 100 + Number(raw.slice(point + 1));
+  const cents = Number(raw.slice(0, point)) * 100 + Number(raw.slice(point + 1));
+  return Number.isSafeInteger(cents) ? cents : null;
 }
 
 function missing(key: string): string {
