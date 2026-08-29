@@ -36,6 +36,14 @@ const CEILING_CENTS = 200_000;
 /** Per-customer refund frequency cap, over the rolling window the control claims to watch. */
 const FREQUENCY_CAP = 2;
 
+/**
+ * The one action this cap counts. `data-model.md` §6 defines the control as a per-customer
+ * *refund* frequency and `contracts/charge-sheet.md` renders it as "refunds/30d"; of the three
+ * actions of §4, only `bulk_refund` is a refund. A payout or an account closure is therefore
+ * neither subject to this cap nor able to consume it.
+ */
+const REFUND_ACTION = 'bulk_refund';
+
 /** The floor the control compares the agent's self-reported confidence against. */
 const CONFIDENCE_THRESHOLD = 0.8;
 
@@ -122,23 +130,24 @@ function perActionCeiling(proposal: ProposedAction): GuardrailCheck {
  * no customer at all, so no per-customer counter ever moves. A frequency cap cannot see a
  * blast radius, and that is the gap this demonstrates.
  *
- * The counter is per action: this is a refund-frequency cap (data-model §6), so an earlier
- * payout or account closure against the same customer is not a refund and does not consume it.
+ * Refunds only, on both sides of the count: a non-refund proposal passes without being tested,
+ * and only earlier refunds are counted, so an account closure neither fails this cap nor eats
+ * a customer's refund allowance (data-model §6, `contracts/charge-sheet.md`).
  */
 function frequencyCap(proposal: ProposedAction, prior: readonly ProposedAction[]): GuardrailCheck {
   const window = `${FREQUENCY_CAP} refunds/30d`;
-  const customer = customerOf(proposal.criteria);
-  if (customer === null) return { passed: true, detail: `no customer over ${window}` };
+  const under = (): GuardrailCheck => ({ passed: true, detail: `no customer over ${window}` });
 
-  const repeats = prior.filter(
-    (earlier) => earlier.action === proposal.action && customerOf(earlier.criteria) === customer,
+  const customer = customerOf(proposal.criteria);
+  if (proposal.action !== REFUND_ACTION || customer === null) return under();
+
+  const refunds = prior.filter(
+    (earlier) => earlier.action === REFUND_ACTION && customerOf(earlier.criteria) === customer,
   ).length;
-  if (repeats < FREQUENCY_CAP) return { passed: true, detail: `no customer over ${window}` };
+  if (refunds < FREQUENCY_CAP) return under();
   return {
     passed: false,
-    detail:
-      `${customer} at ${repeats + 1} ${proposal.action} proposals this session, ` +
-      `cap is ${FREQUENCY_CAP}/30d`,
+    detail: `${customer} at ${refunds + 1} refunds this session, cap is ${window}`,
   };
 }
 
