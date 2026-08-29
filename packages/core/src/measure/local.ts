@@ -26,7 +26,17 @@ import {
   type MeasurementExecutor,
 } from './types.ts';
 
-/** Never rejects: a spawn failure, a non-zero exit and an aborted signal all mean no measurement. */
+/**
+ * Never rejects: a spawn failure, a non-zero exit and an aborted signal all mean no
+ * measurement.
+ *
+ * `error` fires while the child may still be shutting down — the abort kills it and the
+ * event arrives before it has gone — so it only records the failure. The promise settles on
+ * `close`, which fires once the process has exited and its stdio is drained; only then is
+ * the working directory the caller is about to delete free of a live process. The one case
+ * with no `close` to wait for is a child that never started (no `pid`): a missing `python3`,
+ * or a signal already spent before the spawn.
+ */
 function runScript(
   scriptFile: string,
   args: readonly string[],
@@ -41,27 +51,39 @@ function runScript(
       stdio: ['ignore', 'pipe', 'ignore'],
     });
     let stdout = '';
+    let failed = false;
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk: string) => {
       stdout += chunk;
     });
-    // `error` covers a missing python3 and the abort; either way there is no measurement.
-    child.once('error', () => resolvePromise(null));
-    child.once('close', (code) => resolvePromise(code === 0 ? stdout : null));
+    child.once('error', () => {
+      failed = true;
+      if (child.pid === undefined) resolvePromise(null);
+    });
+    child.once('close', (code) => resolvePromise(failed || code !== 0 ? null : stdout));
   });
 }
 
 export class LocalExecutor implements MeasurementExecutor {
   readonly kind = 'local';
 
+  /**
+   * Reading the script and making the temporary directory are inside the `try`: an
+   * unreadable `measure.py` or an unusable temp directory is a failure to measure like any
+   * other, and the contract says `null` rather than a rejection. A rejection here would
+   * abort the sandbox-to-local resolution order instead of ending it in the no-measurement
+   * result the verdict rules expect (D-06 rule 2b).
+   */
   async run(input: MeasureInput): Promise<Measurement | null> {
-    const { source, sha256 } = await readMeasureScript();
-    // The script runs with `cwd` set to the temporary directory, so the ledger it is handed
-    // must be absolute — a relative fixtures path would resolve against the wrong root.
-    const ledger = resolve(input.ledgerPath);
-    const dir = await mkdtemp(join(tmpdir(), 'crossexam-measure-'));
     const started = Date.now();
+    let dir: string | undefined;
     try {
+      const { source, sha256 } = await readMeasureScript();
+      // The script runs with `cwd` set to the temporary directory, so the ledger it is
+      // handed must be absolute — a relative fixtures path would resolve against the wrong
+      // root.
+      const ledger = resolve(input.ledgerPath);
+      dir = await mkdtemp(join(tmpdir(), 'crossexam-measure-'));
       const scriptFile = join(dir, 'measure.py');
       await writeFile(scriptFile, source);
       const stdout = await runScript(
@@ -79,10 +101,9 @@ export class LocalExecutor implements MeasurementExecutor {
         script_sha256: sha256,
       });
     } catch {
-      // Reading the script or writing the copy failed; still no measurement, still no throw.
       return null;
     } finally {
-      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+      if (dir !== undefined) await rm(dir, { recursive: true, force: true }).catch(() => undefined);
     }
   }
 }
