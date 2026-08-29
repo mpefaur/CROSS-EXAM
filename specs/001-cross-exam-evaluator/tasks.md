@@ -234,7 +234,7 @@ earlier verdict with its cited evidence.
 ## Phase 9: Polish & Cross-Cutting Concerns
 
 - [x] T046 [P] Write `README.md` with the pitch, the pinned versions of [D-02](./research.md), the prerequisites and commands from [quickstart.md](./quickstart.md), and the Qodo review trail (Risk R9, R8)
-- [ ] T047 [P] Verify no credential value appears anywhere: grep the repository, the demo output, and the logs; confirm `.env` is untracked and `.env.example` holds names and dummy values only (FR-023, SC-010)
+- [x] T047 [P] Verify no credential value appears anywhere: grep the repository, the demo output, and the logs; confirm `.env` is untracked and `.env.example` holds names and dummy values only (FR-023, SC-010)
 - [ ] T048 Record a successful `pnpm demo` run as insurance against venue wifi and model latency, before the 16:00 PDT freeze (Risk R7)
 - [ ] T049 Write the three-minute demo script to `docs/demo-script.md` following [research-findings.md](../../docs/research-findings.md) §7.4, with $96,310 against $840 as the number that stays in the jury's head (SC-006, SC-007)
 - [ ] T051 [P] **(cut first)** Render grammar lines as a call block in the harness frontend (`dist/_frontend`, second `pnpm patch` site) so a person reading the transcript never sees a raw emoji line; the Bench trace already renders them (T030, D-14 § Presentation)
