@@ -66,9 +66,9 @@ and the processor does not reverse them. Narrow the criteria or justify the amou
   is answered with guidance by rule 2a of research D-06, whatever the Evaluator wrote
   (FR-004); only a measurement that *fails* on the right criteria escalates (rule 2b).
 - `⚖allow` and `⚖deny` MUST carry `🧮`, `💰`, `♻` equal to what `measure` returned (FR-009,
-  Constitution II); a difference is escalated by rule 4.
+  Constitution II); a difference comes back as guidance under rule 4, and the verdict is re-issued.
 - `⚖escalate` carries `📝` and MAY carry the measured triple (rule 3 — threshold exceeded —
-  has a measurement; rules 1 and 2 do not).
+  has a measurement; rules 1 and 2b have none for this proposal).
 - The `📝` reason on a `deny` MUST contain the measured figures, because that text is what
   the harness delivers back to the acting agent as `deny.reason` (FR-012).
 

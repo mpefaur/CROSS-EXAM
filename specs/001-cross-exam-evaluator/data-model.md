@@ -254,9 +254,9 @@ the full registry there, because it is configuration the harness needs and not a
 | `EVALUATOR_MODEL` | `anthropic/claude-sonnet-4-6` | research D-10 |
 | `CROSSEXAM_ESCALATION_THRESHOLD_USD` | `250000` | research D-07 — the band is `$96,310 < t < $418,220` |
 | `CROSSEXAM_MEASUREMENT_TIMEOUT_MS` | `20000` | FR-010, SC-011 |
-| `CROSSEXAM_ACTION_SERVER_URL` | `http://localhost:8791` | the action server, `packages/mcp` (registered on the target agent) |
-| `CROSSEXAM_MEASURE_SERVER_URL` | `http://localhost:8792` | the `measure` server, `packages/measure` (registered on the Evaluator; D-15) |
-| `CROSSEXAM_REPLICA_PATH` | `fixtures/replica.json` | the only ledger the `measure` server opens |
+| `CROSSEXAM_ACTION_SERVER_URL` | `http://localhost:8801` | the action server, `packages/mcp` (registered on the target agent) |
+| `CROSSEXAM_MEASURE_SERVER_URL` | `http://localhost:8802` | the `measure` server, `packages/measure` (registered on the Evaluator; D-15) |
+| `CROSSEXAM_REPLICA_PATH` | `fixtures/replica.json` | the only ledger the `measure` server opens. Server ports sit at `:880x`, clear of TrueForge's `:8790` (local) and `:8791` (hosted) |
 | `CROSSEXAM_GRAMMAR_REGISTRY` | — (required for the demo; unset → adapter inert) | research D-14 — JSON: emoji → field name, `$tool` names the tool, `$tools` lists covered tool names. Mirrors [docs/emoji-grammar.md](../../docs/emoji-grammar.md) |
 | `DAYTONA_API_KEY` | — (required) | needs Sandboxes **and** Snapshots(create) — Risk R1 |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | — (required) | model providers |
