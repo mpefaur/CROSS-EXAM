@@ -5,7 +5,7 @@
 
 Entities from `spec.md` § Key Entities, made concrete. All types are TypeScript as
 implemented in `packages/core/src/model/`. Monetary values are **integer cents**
-internally and formatted to `#.00` dollars only at the wire and display edges — no float
+internally and formatted to `#.##` dollars only at the wire and display edges — no float
 arithmetic anywhere on the money path (FR-006 determinism, SC-002).
 
 ---
@@ -74,10 +74,10 @@ What the acting agent emits, decoded from the emoji grammar.
 
 | Field | Emoji key | Type | Required | Notes |
 | --- | --- | --- | --- | --- |
-| `action` | `🧾` | `'bulk_refund' \| 'issue_payout' \| 'close_account'` | yes | must be a known irreversible tool |
+| `action` | `🧾` | `'bulk_refund' \| 'issue_payout' \| 'close_account'` | yes | must be a known irreversible tool. `tableFor(action)`: `bulk_refund` → `charges`, `issue_payout` → `payouts`, `close_account` → `charges` (the customer's charges are what a closure strands). D-06 rule 2 compares the `measure` result's echoed `table` against it |
 | `criteria` | `🔍` | `string` | yes | a Criteria expression (§5) |
 | `declared_count` | `🔢` | `integer` | yes | missing ⇒ `escalate` (FR-002) |
-| `declared_value_cents` | `💵` | `integer` | yes | parsed from `#.00` dollars; missing ⇒ `escalate` |
+| `declared_value_cents` | `💵` | `integer` | yes | parsed from `#.##` dollars; missing ⇒ `escalate` |
 
 **Validation**
 - All four keys present exactly once. A repeated key is a parse failure.
@@ -105,7 +105,9 @@ status=disputed AND refunded=false AND age_days<=30
 
 ## 6. GuardrailReport (P2)
 
-The four conventional controls the acting agent runs *before* proposing (FR-017/FR-018).
+The four conventional controls, computed by the Bench from the decoded proposal at
+charge-sheet assembly (FR-017/FR-018, research D-13). Not in any tool handler, not in the
+harness patch.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -130,7 +132,7 @@ artifact both builders must agree on before typing. Contract:
 | `approval_id` | `string` | the pending `tool.approval_required` this resolves |
 | `round` | `1 \| 2` | one round of cross-examination only (spec, Assumptions) |
 | `proposal` | `ProposedAction \| { parse_error: string }` | correlated from `tool.approval_required` → preceding `model.message` |
-| `guardrails` | `GuardrailReport` | as reported by the acting agent |
+| `guardrails` | `GuardrailReport` | computed by the Bench at charge-sheet assembly (D-13) |
 | `transcript_excerpt` | `string` | the business request that led to the proposal |
 | `replica` | `{ seed: string, as_of: string, path: string }` | which replica the measurement must run against |
 
@@ -159,7 +161,7 @@ produced, for any reason, and forces `escalate` (FR-010).
 | `verdict` | `'allow' \| 'deny' \| 'escalate'` | exactly one (FR-008) |
 | `reason` | `string` | delivered to the acting agent on `deny` (FR-012) |
 | `evidence` | `Measurement \| null` | `null` only when `verdict === 'escalate'` |
-| `rule` | `1 \| 2 \| 3 \| 4 \| 5` | which rule of research D-06 fired; makes the verdict auditable |
+| `rule` | `1 \| 2 \| 3 \| 4 \| 5 \| 6` | which rule of research D-06 fired; `6` = no guardrail fired, the Evaluator's verdict stood |
 
 **Invariant, enforced in one place and unit-tested** (Constitution II, FR-009):
 
@@ -182,10 +184,10 @@ One held action moves through exactly these states. No other transition exists.
       │                                                    ▼
       └──────────────────────────────────────────────►  DECIDED
                                                            │
-                 rule 4 ┌─────────────────┬─────────────── ┤ rule 5
+                 rule 6 ┌─────────────────┬─────────────── ┤ rule 6
                         ▼                 ▼                ▼
                      DENIED           ESCALATED         ALLOWED
-                        │             (rules 1,2,3)         │
+                        │             (rules 1–5)           │
        round 1 only ────┘                  │                ▼
        agent re-proposes                   │            EXECUTED
        → new HeldAction, round 2           │            (production ledger)
@@ -218,7 +220,8 @@ from a later session (FR-021).
 ## 12. Configuration
 
 All from the environment, no value in the repository (FR-023, Constitution VI). Names only
-in `.env.example`.
+in `.env.example` — with one stated, non-secret exception: `CROSSEXAM_GRAMMAR_REGISTRY` carries
+the full registry there, because it is configuration the harness needs and not a credential.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -229,6 +232,10 @@ in `.env.example`.
 | `EVALUATOR_MODEL` | `anthropic/claude-sonnet-4-6` | research D-10 |
 | `CROSSEXAM_ESCALATION_THRESHOLD_USD` | `250000` | research D-07 — the band is `$96,310 < t < $418,220` |
 | `CROSSEXAM_MEASUREMENT_TIMEOUT_MS` | `20000` | FR-010, SC-011 |
+| `CROSSEXAM_ACTION_SERVER_URL` | `http://localhost:8791` | the action server, `packages/mcp` (registered on the target agent) |
+| `CROSSEXAM_MEASURE_SERVER_URL` | `http://localhost:8792` | the `measure` server, `packages/measure` (registered on the Evaluator; D-15) |
+| `CROSSEXAM_REPLICA_PATH` | `fixtures/replica.json` | the only ledger the `measure` server opens |
+| `CROSSEXAM_GRAMMAR_REGISTRY` | — (required for the demo; unset → adapter inert) | research D-14 — JSON: emoji → field name, `$tool` names the tool, `$tools` lists covered tool names. Mirrors [docs/emoji-grammar.md](../../docs/emoji-grammar.md) |
 | `DAYTONA_API_KEY` | — (required) | needs Sandboxes **and** Snapshots(create) — Risk R1 |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | — (required) | model providers |
 

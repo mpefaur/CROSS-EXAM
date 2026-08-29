@@ -39,8 +39,9 @@ the Evaluator returns `escalate` under rule 1 without attempting a measurement.
 
 **Orchestrator obligations**
 - Correlate `tool.approval_required` (which carries only `{id, source_event_id}`) with the
-  preceding `model.message` to recover the tool name and arguments (FR-002; harness check,
-  research §A).
+  preceding `model.message` to recover the tool name and the text content; decode the proposal
+  from the content, never from the synthesised `tool_calls` arguments (FR-002, D-14; harness
+  check, research §A).
 - One turn in flight per session, ever (FR-003, Risk R5).
 - Never construct a `Measurement`. Its only sources are the two executors.
 
@@ -59,7 +60,12 @@ and the processor does not reverse them. Narrow the criteria or justify the amou
 ```
 
 **Evaluator obligations**
-- `⚖allow` and `⚖deny` MUST carry `🧮`, `💰`, `♻` (FR-009, Constitution II).
+- MUST call `measure` (`🧾measure` / `🔍` / `🗂`, research D-15) with the proposal's **exact**
+  `🔍` and `tableFor(action)` before writing `⚖allow` or `⚖deny`; the Bench reads the last
+  such result as `observed`, and a verdict without one — or one measured on other criteria —
+  is escalated by rule 2 of research D-06 whatever the Evaluator wrote (FR-004).
+- `⚖allow` and `⚖deny` MUST carry `🧮`, `💰`, `♻` equal to what `measure` returned (FR-009,
+  Constitution II); a difference is escalated by rule 4.
 - `⚖escalate` carries `📝` and MAY carry the measured triple (rule 3 — threshold exceeded —
   has a measurement; rules 1 and 2 do not).
 - The `📝` reason on a `deny` MUST contain the measured figures, because that text is what
@@ -67,7 +73,9 @@ and the processor does not reverse them. Narrow the criteria or justify the amou
 
 ## Resolution
 
-The orchestrator maps the verdict onto the pending approval:
+The orchestrator first runs `decide(proposal, evaluatorVerdict, observed, config)` (research
+D-06) — a guardrail that can only turn the verdict into `escalate` — then maps the result onto
+the pending approval:
 
 | Verdict | Harness action | Result |
 | --- | --- | --- |

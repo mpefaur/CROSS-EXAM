@@ -11,6 +11,7 @@ type DecodeResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 decodeProposal(text: string): DecodeResult<ProposedAction>
 decodeVerdict(text: string): DecodeResult<Verdict>
+decodeMeasurement(text: string): DecodeResult<Measurement['evidence']>   // 🧮 💰 ♻ only — measure.py stdout
 ```
 
 Obligations:
@@ -18,15 +19,22 @@ Obligations:
 1. Split on `\n`. Ignore lines that are empty or whitespace-only. Every other line MUST
    begin with a registered key from the registry **for that direction** — a verdict key in
    a proposal, or a proposal key in a verdict, is a parse failure; its value is the rest of the line,
-   literal, trimmed of trailing whitespace only.
+   literal, trimmed of trailing whitespace only, after dropping one leading `U+FE0F` (models add
+   the variation selector to `⚖`, `♻`, `🗂`; the D-14 adapter drops it the same way).
+   `🗂` and `🧾measure` belong to the measurement request (registry § Measurement request),
+   which no Bench decoder accepts — the harness passes it to the `measure` server —
+   so `decodeProposal` rejects both.
 2. An unregistered leading character, or a line with no key, is a **parse failure**. Return
    `{ ok: false }`. Never attempt a second, looser parse (FR-025).
 3. A repeated key is a parse failure. A missing required key is a parse failure.
 4. Never infer an undelimited field value (FR-025). Never strip or interpret quotes.
 5. Line order is irrelevant — index by key, not by position.
-6. `🔢` and `💵` are required on a proposal. Their absence is a parse failure and the caller
+6. `decodeMeasurement` accepts exactly `🧮`, `💰`, `♻` — all three required, `⚖`/`📝` are a
+   parse failure. It is the executors' decoder for `measure.py` stdout
+   ([measurement-executor.md](./measurement-executor.md)).
+7. `🔢` and `💵` are required on a proposal. Their absence is a parse failure and the caller
    maps it to `escalate` (FR-002).
-7. Numbers: `🔢` is a bare non-negative integer. `💵` and `💰` are `#.##` dollars, parsed to
+8. Numbers: `🔢` is a bare non-negative integer. `💵` and `💰` are `#.##` dollars, parsed to
    integer cents. Any other numeric form is a parse failure.
 
 ## Encoder

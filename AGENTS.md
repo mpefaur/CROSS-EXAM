@@ -14,13 +14,12 @@ Cline, Copilot, Codex, Gemini…). Agent-specific files (`CLAUDE.md`,
   another agent's irreversible action — by executing it against a sandboxed replica —
   and cross-examines that agent with the evidence before the action reaches production.
 - **Stack:** TypeScript on Node 22.14+, pnpm workspace. TrueForge harness (local mode,
-  `:8790`) via `@truefoundry/trueforge-sdk`; a custom streamable-HTTP MCP server
+  `:8790`) via `@truefoundry/trueforge-sdk`; two custom streamable-HTTP MCP servers
   (`@modelcontextprotocol/sdk`); Daytona sandbox; a seeded deterministic ledger.
 - **Run:** `pnpm demo` · **Test:** `pnpm test` · **Lint:** `pnpm lint` · **Build:** `pnpm build`
 
-> These four commands are **established by the first setup task**, not yet present.
-> Until that task lands, "verified" means the command was run and its output read —
-> see the constitution's Verified by a Real Command principle.
+> The four commands exist since Wave 1 (T001–T005). "Verified" means the command was run
+> and its output read — see the constitution's Verified by a Real Command principle.
 
 ## 2. Workflow — Spec-Driven Development (non-negotiable)
 

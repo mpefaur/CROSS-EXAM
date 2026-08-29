@@ -87,7 +87,7 @@ A challenge that is just "I disagree" wastes the turn. A good one names four thi
 > (`contracts/measurement-executor.md`) has both executors return `Measurement | null` and
 > never throw, and `local.ts:31` swallows its own errors. **Is there a path where `run()`
 > throws that I am not seeing?** If not, catching here would let a failed measurement reach
-> rule 4 as a `deny`, which Constitution II forbids — no measurement must produce `escalate`.
+> rule 6 as a `deny`, which Constitution II forbids — no measurement must produce `escalate`.
 
 Then honor the answer:
 

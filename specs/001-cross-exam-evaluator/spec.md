@@ -81,7 +81,6 @@ complete value of the product on its own.
 
 
 ### User Story 2 - The guardrails that pass while the damage goes through (Priority: P2)
-***
 Before the Evaluator gets involved, the acting agent runs the protections a real
 money-moving agent ships with today: a per-refund dollar ceiling, a per-customer
 frequency cap, an eligibility-policy check, and its own confidence score. All four pass —
@@ -314,15 +313,16 @@ earlier verdict is retrievable.
 
 **Proposal and verdict encoding**
 
-- **FR-024**: The proposal the acting agent emits, and the denial reason returned to it,
-  MUST use a flat, emoji-keyed grammar — each field introduced by a unicode emoji that
+- **FR-024**: The proposal the acting agent emits, and the `📝` reason text the Evaluator
+  produces for a denial, MUST use a flat, emoji-keyed grammar — each field introduced by a unicode emoji that
   names it, one field per line, no nested structures, and no JSON-escaped payload inside
   any field. The selection criteria, the declared count, and the declared value each carry
   their own emoji key. Emoji keys are chosen because they are compact and visually
   unambiguous: they cost fewer tokens than a spelled-out field name and they raise parse
   accuracy on small models. The key set is the registry in
   [docs/emoji-grammar.md](../../docs/emoji-grammar.md), which is the single source of
-  truth both agents encode and decode against.
+  truth both agents encode and decode against. The harness's own envelope around a denied
+  call (its native tool-result wrapper) is outside the grammar and outside this requirement.
 - **FR-025**: A proposal that does not parse under that grammar MUST NOT be re-parsed
   under a looser one, and no undelimited field value may be inferred. An unparseable
   proposal yields no measurement and therefore `escalate` under FR-010.

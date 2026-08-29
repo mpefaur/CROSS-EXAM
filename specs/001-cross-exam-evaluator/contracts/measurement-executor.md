@@ -23,7 +23,7 @@ python3 measure.py --ledger <path.json> --table <charges|payouts> --criteria '<e
 
 **Exit codes**
 
-| Code | Meaning | Orchestrator maps to |
+| Code | Meaning | Executor maps to |
 | --- | --- | --- |
 | `0` | measurement produced on stdout | a `Measurement` |
 | `2` | criteria did not parse under the grammar ([data-model.md](../data-model.md) §5) | no measurement → `escalate` (FR-025 → FR-010) |
@@ -58,6 +58,18 @@ Two implementations, one behind each transport:
   so the upload happens once per run.
 - **`LocalExecutor` (fallback)** — runs the same file with `python3` in a temporary working
   directory, no network. Used **only** when the sandbox is unreachable (FR-004).
+
+## The tool the Evaluator calls
+
+`measure`, on the read-only server `packages/measure` (`@crossexam/measure`, research D-15),
+attached only to the Evaluator. Arguments `criteria` and `table` (strings; the harness passes
+them from the `🔍` and `🗂` lines). Non-destructive: no approval. It runs the resolution order
+below and returns the script's three lines verbatim as its text result, plus
+`{ executor, duration_ms, script_sha256, criteria, table }` as `structuredContent` — the echoed
+`criteria`/`table` let D-06 rule 2 tie the result to the proposal. It opens only
+`CROSSEXAM_REPLICA_PATH` and listens on `CROSSEXAM_MEASURE_SERVER_URL` (data-model §12). The Bench reads the
+**last** `measure` tool-result event of the Evaluator's turn to build `observed` for `decide()`
+(research D-06); it never runs the executors itself.
 
 ## Resolution order and the 20-second budget
 

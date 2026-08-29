@@ -23,7 +23,7 @@ fell short. The check is done once, here; `plan.md` cites the outcome.
 | Hold an irreversible tool call before it runs | **Yes** — `require_approval_for_tools`, per-MCP-server policy, settable to `["@all"]` (`agent-session/schemas/agentSpec.ts:95-101`) | Use natively. No own gate. |
 | Deliver a denial reason back to the acting agent | **Yes** — `deny.reason`, *"Optional reason shown to the agent when denied"* (`core/events/schema.ts:72-76`) | Use natively. **No agent-to-agent protocol is written.** |
 | Re-proposal after a denial | **Yes** — emergent from the above; the agent reads the reason and proposes again | Use natively. |
-| Run code in an isolated environment | **Yes** — Daytona sandbox + Code Mode, provisioned per agent, persists across turns of a session | Use natively as the default executor. |
+| Run code in an isolated environment | **Partial** — Daytona sandbox + Code Mode, provisioned per agent, persists across turns of a session; but no local fallback, no fixed 20 s budget, no `script_sha256` | **Falls short.** Own `SandboxExecutor` drives Daytona behind the `measure` tool (D-03, D-15). |
 | Parallel investigation angles | **Yes** — built-in `create_sub_agent`, on by default, one level, emits `thread.created`/`thread.done` | Use natively (prompt, not code). |
 | Render the verdict card | **Yes** — OpenUI, on by default, `Card`/`Tag`/`Table`/bar chart/`Action(@ToAssistant)` | Use natively (prompt, not frontend code). |
 | Human decision surface for `escalate` | **Yes** — the pending approval itself is the surface; the turn stays `done` with a non-empty `required_actions` until a person resolves it | Use natively. |
@@ -33,7 +33,7 @@ fell short. The check is done once, here; `plan.md` cites the outcome.
 | Measure a proposed action's reach over data | **No** — nothing in the harness executes a proposal against a replica and counts | **Falls short. This is the product.** Own measurement runner + seeded ledger. |
 | Recognise the emoji grammar as a tool call | **No** — the loop's only tool-call source is the provider's native `tool_calls` (`trueforge-core/dist/core/runtime/AgentThread.mjs:785,794` → `enrichAssistantMessage`); plain text ends the turn | **Falls short.** `pnpm patch` wraps the `ILLM` adapter so the call is synthesised from grammar lines before the loop sees the message (D-14); everything after that point stays native. |
 
-Own code is therefore confined to six things: the harness patch (D-14), the orchestrator (correlation + serialization),
+Own code is therefore confined to seven things: the harness patch (D-14), the `measure` server (D-15), the orchestrator (correlation + serialization),
 the MCP server of irreversible actions, the seeded ledger and its generator, the measurement
 runner and its script, and the verdict rules. Everything else is harness behavior.
 
@@ -44,12 +44,12 @@ runner and its script, and the verdict rules. Everything else is harness behavio
 ### D-01 — Runtime, package manager, and workspace shape
 
 **Decision**: Node 22.14+ (developed on 24.20.0), pnpm 11.4.0 (exact pin — the installed version on the build machine; the original `pnpm 9` pin was amended at T001), TypeScript 5.9.3, ESM only.
-Three workspace packages: `packages/core`, `packages/mcp`, `apps/bench`. Packages export
+Four workspace packages: `packages/core`, `packages/mcp`, `packages/measure` (D-15), `apps/bench`. Packages export
 **TypeScript source directly** (`"exports": "./src/index.ts"`) and everything runs through
 `tsx`; `pnpm build` is a workspace-wide `tsc --noEmit` typecheck, not an emit step.
 
 **Rationale**: `AGENTS.md §1` fixes "TypeScript on Node 22.14+, pnpm workspace" as a
-pre-existing constraint. The three packages map exactly onto the two-builder split of
+pre-existing constraint. The packages map exactly onto the two-builder split of
 `docs/research-findings.md §7.3` (B: `packages/mcp` + the ledger fixtures in `core`;
 A: `apps/bench` + the measurement runner). Exporting source and skipping emit removes the
 single biggest workspace hazard under a 4-hour clock — cross-package build ordering, stale
@@ -67,7 +67,7 @@ fails on a type error.
 
 ### D-02 — Pinned dependency versions
 
-**Decision**: `@truefoundry/trueforge` 0.1.4 (harness, run via `npx`, local mode on `:8790`),
+**Decision**: `@truefoundry/trueforge` 0.1.4 (harness, run from the workspace with `pnpm exec trueforge` so the D-14 patch loads — never `npx`; local mode on `:8790`),
 `@truefoundry/trueforge-sdk` 0.1.3, `@modelcontextprotocol/sdk` 1.30.0, `zod` 4.5.2,
 `tsx` 4.23.12, `vitest` 4.1.11, `typescript` 5.9.3. Exact pins, no `^`.
 
@@ -154,33 +154,49 @@ it with zero setup.
 - *Hardcode the totals in the verdict*: this is precisely the Constitution II violation the
   whole project exists to refuse (Risk R4).
 
-### D-06 — Verdict rules, and the order they are applied in
+### D-06 — The verdict is the Evaluator's; `decide()` is the guardrail that can only escalate
 
-**Decision**: One pure function, `decide(proposal, measurement, config) → Verdict`, applying
-these rules in this exact order. The order is normative — later rules never override earlier
-ones.
+**Decision**: The Evaluator — a model — measures by calling the `measure` tool (D-15) and
+then writes the verdict in the grammar. Code never approves and never denies. One pure
+function, `decide(proposal, evaluatorVerdict, observed, config) → Verdict`, where `observed`
+is the **last** `measure` tool result of the Evaluator's turn, as the Bench read it from the
+tool-result event (`null` when no call produced a result), applies these rules in this exact
+order.
+Every rule can only force **`escalate`**; if none fires, the Evaluator's verdict stands.
 
 1. Proposal did not parse, or `🔢`/`💵` missing → **`escalate`** (FR-002, FR-025).
-2. No measurement produced — both executors failed, or each exceeded its 20 s budget →
-   **`escalate`** (FR-010).
-3. `measured_value > escalation_threshold` → **`escalate`**, citing the measured figures
+2. No observed measurement **for this proposal** — the Evaluator never called `measure`,
+   both executors failed or exceeded their 20 s budget, or the last result's echoed
+   `criteria`/`table` differ from the proposal's `🔍` and `tableFor(action)` (data-model §4)
+   → **`escalate`** (FR-004, FR-010). Whatever the Evaluator wrote. Measuring something
+   else is not measuring this.
+3. `observed.value > escalation_threshold` → **`escalate`**, citing the observed figures
    (FR-011).
-4. `measured_count != declared_count`, or `measured_value != declared_value` (exact, to the
-   cent), or `duplicate_count > 0` → **`deny`**, reason carrying all three measured figures
-   (FR-012).
-5. Otherwise → **`allow`**, citing the measured figures (FR-009).
+4. On `⚖allow`/`⚖deny`, or whenever a triple is present: the Evaluator's cited `🧮`/`💰`/`♻`
+   differ from `observed` → **`escalate`**. It cited numbers it did not measure
+   (Constitution II).
+5. The Evaluator wrote `⚖allow` while `observed.count != declared_count`,
+   `observed.value != declared_value` (exact, to the cent), or `observed.duplicates > 0` →
+   **`escalate`**. It approved a mismatch; a person looks.
+6. Otherwise the Evaluator's verdict stands — `allow` or `deny`, with its `📝` — and
+   `evidence` is `observed`.
 
-There is no sixth branch, and no "inconclusive" branch (spec, Clarification 3).
+There is no "inconclusive" branch (spec, Clarification 3). The demo's first round is a
+`deny` the Evaluator writes itself (1,204 ≠ 7) and the second an `allow` it writes itself
+(7 = 7, $840.00, 0 duplicates); both pass rule 6.
 
-**Rationale**: Rules 1–3 are escalations and must precede the decisive verdicts, because
-`escalate` is the conservative outcome and Constitution II admits no waiver. Rule 4 fires on
-the demo's first proposal (1,204 ≠ 7) and rule 5 on the second (7 = 7, $840.00 = $840.00,
-0 duplicates). Exact equality rather than a tolerance: a tolerance is a threshold nobody
-specified, and the seeded data makes exactness free.
+**Rationale**: The judgment belongs to the model — that is what an evaluator agent is. The
+deterministic part is a guardrail around its tool use: did it measure, did it cite what it
+measured, did it approve something the numbers contradict. Rules 1–3 precede 4–5 because
+they hold with no verdict at all. Exact equality rather than a tolerance: a tolerance is a
+threshold nobody specified, and the seeded data makes exactness free.
 
 **Alternatives considered**:
-- *Threshold check after the deny check*: would let a catastrophic-but-mismatched action
-  come back `deny` instead of reaching a human. Less conservative; rejected.
+- *`decide()` produces the verdict from the measurement* (the earlier form of this
+  decision): deterministic code deciding, the model reduced to a narrator. Rejected — the
+  models make the calls; code guards them.
+- *Rule 5 forces `deny` instead of `escalate`*: code denying is code deciding. `escalate` is
+  the conservative outcome and Constitution II admits no waiver.
 - *A percentage tolerance on the declared figures*: speculative configuration with one
   possible value (Constitution VIII).
 
@@ -190,7 +206,7 @@ specified, and the seeded data makes exactness free.
 
 **Rationale**: This is the one number the spec's Assumptions under-specified, and getting it
 wrong breaks User Story 1. The spec asks only that "the US3 scenario crosses it and the US1
-corrected proposal does not" — but D-06 rule 3 runs *before* the deny rule, so the threshold
+corrected proposal does not" — but D-06 rule 3 runs *before* rule 6 lets the Evaluator's `deny` stand, so the threshold
 must also sit **above** US1's *first* measurement ($96,310) or that proposal would escalate
 instead of being denied, and acceptance scenario US1-2 would fail. The binding constraint is
 therefore:
@@ -280,7 +296,7 @@ Assumptions.
 three things, because each is cheaper to check than a full scenario re-run:
 1. the grammar decoder (round-trip + every malformed-input rejection path),
 2. the ledger generator's cohort totals (1,204 / $96,310.00 / 611 / 7 / $840.00 / $418,220.00),
-3. `decide()`'s five rules and their ordering.
+3. `decide()`'s six guardrail rules and their ordering.
 
 Nothing else gets a unit test.
 
@@ -292,82 +308,144 @@ milliseconds and each guards a number the whole demo depends on.
 **Alternatives considered**: a test per behavior change (the default outside this event) —
 does not fit the 4-hour budget and the constitution says so explicitly.
 
-### D-13 — Guardrail contrast (P2) is data on the proposal, not a second system
+### D-13 — Guardrail contrast (P2) is data the Bench computes from the proposal
 
-**Decision**: The acting agent's four conventional controls — per-action $2,000 ceiling,
-per-customer frequency cap, eligibility-policy check, self-reported confidence — are
-evaluated inside the MCP tool handler before it returns its proposal, and reported as four
-pass/fail lines rendered alongside the verdict.
+**Decision**: The four conventional controls — per-action $2,000 ceiling, per-customer
+frequency cap, eligibility-policy check, self-reported confidence — are a pure function in
+`packages/mcp/src/guardrails.ts` that the **Bench** calls at charge-sheet assembly, on the
+decoded proposal and the session's history. The report goes into the charge sheet the
+Evaluator reads ([contracts/charge-sheet.md](./contracts/charge-sheet.md) `guardrails`) — the
+model sees the four passes beside its own measurement and can name the gap — and is rendered
+as four pass/fail lines beside the verdict. They run in no tool handler (the handler does not execute until `allow`) and
+they are **not part of the harness patch** (D-14), which knows nothing about them.
 
 **Rationale**: FR-017/FR-018 and `docs/research-findings.md §5.2` price this at ~10 minutes
-for a high demo return. It is deliberately *not* a policy engine: it is four checks that all
-pass, which is the entire point.
+for a high demo return. It is deliberately *not* a policy engine: four checks that all pass,
+which is the entire point. Everything they read is already in the transcript, so a static
+check in the Bench needs no harness state.
 
 **Alternatives considered**: a configurable rules engine — speculative complexity for four
-hardcoded checks that exist to be shown passing.
+hardcoded checks that exist to be shown passing. A read-only `check_guardrails` MCP tool —
+one more surface for a computation the Bench can do on data it already holds.
 
 ---
 
-### D-14 — Harness patch: grammar lines are first-class tool calls
+### D-14 — Harness patch: a registry-driven emoji-lines-to-tool-call adapter
 
 **Decision**: Patch `@truefoundry/trueforge@0.1.4` with `pnpm patch`, committed as
 `patches/@truefoundry__trueforge@0.1.4.patch` and applied on every install. One seam: the
-`llm:` factory in `apis/turns.ts` (`dist/main.js`, unbundled and source-mapped) constructs
-`new VercelAILLM(...)`; wrap it in a `GrammarToolCallLLM` implementing the same `ILLM`
-interface (`create()` / `createNonStream()`), ~60 lines, which:
+`llm:` factory in `apis/turns.ts` (`dist/main.js:10328` in 0.1.4, unbundled and
+source-mapped) constructs `new VercelAILLM(...)`; wrap it in `GrammarToolCallLLM`, an `ILLM`
+implementation (`create()` / `createNonStream()`), ~80 lines. **Generic and registry-driven,
+not hardcoded to our keys.** At harness start it reads `CROSSEXAM_GRAMMAR_REGISTRY`
+(data-model §12): a JSON object mapping an emoji to a field name, with two reserved entries —
+the key mapped to `$tool` names the tool, and `$tools` lists the tool names the grammar
+covers. Unset → the wrapper is inert and the harness behaves stock.
 
-1. **In** — deletes `body.tools` before delegating. No JSON tool schema reaches the model; it
-   learns the tools only from the grammar in its prompt.
-2. **Out** — re-yields every stream chunk untouched, and on the generator's final
-   `RawAssistantMessage`: if `tool_calls` is empty and `content` holds a `🧾` line, sets
-   `tool_calls = [{ id, type: "function", function: { name: <🧾 value>, arguments } }]` and
-   `finish_reason: "tool_calls"`. `arguments` is the JSON object of the other proposal-key
-   lines by field name (`criteria`, `declared_count`, `declared_value`) — raw strings, absent
-   when the line is absent. `content` is left untouched.
+```json
+{"$tools":["bulk_refund","issue_payout","close_account","measure"],
+ "🧾":"$tool","🔍":"criteria","🔢":"declared_count","💵":"declared_value","🗂":"table"}
+```
 
-`trueforge-core` is not edited. Everything after the seam is native and unchanged:
-`enrichAssistantMessage` → `tool_info.is_approval_required` from the MCP `destructive`
-annotation → `tool.approval_required` → resolve with `reason` → tool result → next LLM call.
-Source, at upstream commit `a3a1395`: seam `packages/trueforge/src/apis/turns.ts:146-162`;
-gate `packages/trueforge-core/src/core/runtime/AgentThread.ts:1073-1144` (`enrichAssistantMessage`
-is called twice there — once for execution, once for the SSE event — which is why the
-injection lives upstream of both, on the `ILLM` return value); approval sentinel
-`packages/trueforge-core/src/core/mcp/ToolSet.ts:69-91`.
+The wrapper is symmetric:
+
+- **In** — removes from `body.tools` every entry whose name is in `$tools`, so no JSON
+  schema for a grammar tool reaches the model; other tools (the harness's built-ins —
+  `create_sub_agent`, OpenUI) stay native. In prior context it drops `tool_calls` for
+  grammar tools from assistant messages (their `content` already holds the lines) and turns
+  the matching `role: tool` results into `role: user` text. `VercelAILLM` would otherwise
+  render them as provider tool-call / tool-result parts, and Anthropic rejects `tool_use`
+  without `tools`. Provider-agnostic; the deny reason and the `measure` result arrive as
+  plain text.
+- **Out** — re-yields every stream chunk untouched. On the generator's final
+  `RawAssistantMessage`, if `tool_calls` is empty: for each `content` line whose first
+  codepoint is a registered key, the rest of the line is the raw string value; the `$tool`
+  key names the tool, every other registered key becomes an argument under its mapped name;
+  one leading `U+FE0F` after the key is dropped (models add it to `⚖`, `♻`, `🗂`); unregistered
+  lines are ignored. If a `$tool` line was found, set
+  `tool_calls = [{ id, type: "function", function: { name, arguments } }]` and
+  `finish_reason: "tool_calls"`. `content` is left untouched — the model must read its own
+  proposal back.
+
+No types, no validation, no knowledge of guardrails, verdict rules or measurement. The
+registry is user-chosen; the adapter is reusable for any emoji-keyed line grammar.
+
+`trueforge-core` is not edited. Everything after the seam is native: `stepLLMCall`
+(`AgentThread.mjs:740-792`) reads the generator's return value → `enrichAssistantMessage` →
+`tool_info.is_approval_required` from the MCP `destructive` annotation →
+`tool.approval_required` → resolve with `reason` → tool result → next LLM call. Source at
+upstream `a3a1395`: seam `packages/trueforge/src/apis/turns.ts:146-162`; gate
+`packages/trueforge-core/src/core/runtime/AgentThread.ts:1073-1144` (`enrichAssistantMessage`
+is called twice — execution and SSE event — which is why the injection lives upstream of
+both, on the `ILLM` return value); approval sentinel `packages/trueforge-core/src/core/mcp/ToolSet.ts:69-91`.
+
+**Presentation.** The grammar lines stay in the model's context and therefore in the raw
+transcript. What a person sees is a rendering concern, as a coding agent renders a tool call
+as a block rather than raw text: the Bench trace renders a proposal as
+"`bulk_refund` · `status=disputed` · declared 7 / $840.00" (T030); rendering in the harness
+frontend (`dist/_frontend`) is polish, T051, cut first. The Bench decodes the proposal from
+`content` with `decodeProposal` (T026) — the only source of truth; a missing `🔢` or a
+malformed line is a parse failure → `escalate` (FR-002, FR-025). The tool never runs on a
+proposal the Bench did not decode, because the approval is the Bench's to resolve.
 
 **Rationale**: The loop's only tool-call source is the provider's `tool_calls`; plain text
-ends the turn (§A). `ILLM` is a public, pluggable interface and its return value is read by
-every downstream consumer — the synthesis plugs into an existing contract instead of editing
-control flow. `pnpm patch` rather than a fork because the pin to 0.1.4 already exists (R9),
-the dist is readable, and a fork costs a clone, a build and a `file:` link under the clock.
-
-**The patch is dumb on purpose.** It maps lines to strings; it validates nothing. The Bench
-decodes the original text strictly with `decodeProposal` (T026) — a missing `🔢` or a
-malformed line is still a parse failure → `escalate` (FR-002, FR-025). The tool never runs
-on a proposal the Bench did not decode, because the approval is the Bench's to resolve.
+ends the turn (§A). `ILLM` is a public, pluggable interface whose return value every
+downstream consumer reads — the synthesis plugs into an existing contract instead of editing
+control flow. Registry-driven so the patch carries no product knowledge and survives a key
+change without a re-derive. `pnpm patch` rather than a fork because the pin to 0.1.4 already
+exists (R9), the dist is readable, and a fork costs a clone, a build and a `file:` link
+under the clock. Constitution VIII tradeoff (one config surface with one value today) is in
+`plan.md` Complexity Tracking.
 
 **Facts to know**:
-- A denial reaches the model as a tool result: `{"error":"User denied tool call: <reason>"}`
-  (`ToolSet.ts:85-90`). The `📝` line rides inside that string. This is harness input to the
-  model, not model output; FR-024 governs what the model *emits*.
+- A denial reaches the model as the text `{"error":"User denied tool call: <reason>"}`
+  (`ToolSet.ts:85-90`, after the wrapper's `role: user` conversion; the wrapper does not unwrap
+  the envelope — it validates and reshapes nothing). Harness input, not model output; FR-024
+  governs what the model *emits*.
 - Streaming shows the grammar as plain-text deltas; only the final `model.message` carries
   `tool_calls`. The state machine reads the final message, so this is cosmetic.
-- `stop` sequences are available per agent through `model_params` passthrough
-  (`agentSpec.ts:22-38` → `stopSequences` in `VercelAILLM`). Not needed: the turn ends on
-  its own and the wrapper reads the finished message.
+- `stop` sequences exist per agent through `model_params` passthrough. Not needed: the turn
+  ends on its own and the wrapper reads the finished message.
 
 **Risks**:
-- *R-14a* — Anthropic rejects a request whose history holds `tool_use`/`tool_result` blocks
-  but declares no `tools`; the Evaluator runs on Claude. If the T008a run shows it, the
-  wrapper keeps `body.tools` on requests whose context already holds tool blocks, or renders
-  prior calls as text. Verified by a real turn, not assumed.
-- *R-14b* — The patch pins to 0.1.4 and fails loudly on a bump. Intended: R9 forbids bumps.
+- *R-14a* — A model that emits a native built-in call and grammar lines in the same message:
+  the wrapper synthesises only when `tool_calls` is empty, so the grammar lines are ignored
+  that turn. Prompts keep the proposal in its own message. Watched in the T008a run.
+- *R-14b* — Converting grammar tool results to `role: user` changes the provider's view of
+  history. Verified by a Claude turn after a deny in T008a, not assumed.
+- *R-14c* — The patch pins to 0.1.4 and fails loudly on a bump. Intended: R9 forbids bumps.
 
 **Alternatives considered**: edit `AgentThread.stepLLMCall` in `trueforge-core` before both
-`enrichAssistantMessage()` calls — ~20 lines but a core control-flow edit, and a second
-patch site for `tools`; the wrapper covers both from one seam. Fork
-`github.com/truefoundry/trueforge` and build from source (`pnpm --filter @truefoundry/trueforge run dev`,
-tsup + tsc, port 8790) — same change, more toolchain; revisit only if a second seam
-appears. Bench owns the pause — D-08, third alternative.
+`enrichAssistantMessage()` calls — a core control-flow edit and a second site for `tools`.
+Keep `body.tools` when history holds tool blocks — re-sends the JSON schema on every turn
+after the first deny, the exact surface D-08 removes. Scope the wrapper by model name —
+breaks when both agents share a model; scoping by `$tools` does not. Fork
+`github.com/truefoundry/trueforge` and build from source — same change, more toolchain.
+Bench owns the pause — D-08, third alternative.
+
+### D-15 — Measurement is a tool the Evaluator calls: `measure` on a read-only server
+
+**Decision**: A second MCP server, `packages/measure` (`@crossexam/measure`,
+streamable-HTTP, attached only to the Evaluator agent), exposes one tool, `measure`, with
+string arguments `criteria` and `table` (`charges` | `payouts`), annotated read-only and
+non-destructive so it needs no approval. It runs the resolution order of D-03 (sandbox
+first, local fallback, one fresh 20 s budget each) and returns the three grammar lines
+exactly as `measure.py` printed them as its text result, with `{executor, duration_ms,
+script_sha256, criteria, table}` in `structuredContent` — the echo is what lets rule 2 of D-06
+tie the result to the proposal. It reads the replica at `CROSSEXAM_REPLICA_PATH` and listens
+on `CROSSEXAM_MEASURE_SERVER_URL`; the action server listens on `CROSSEXAM_ACTION_SERVER_URL`
+(data-model §12). `pnpm demo` starts both (T030). The Evaluator invokes it in the grammar —
+`🧾measure` / `🔍<criteria>` / `🗂<table>` — through the D-14 adapter. The Bench reads the
+tool-result event of the Evaluator's turn to obtain `observed` for `decide()` (D-06).
+
+**Rationale**: The models make the tool calls; nothing deterministic decides for them. The
+action server (`packages/mcp`) must never open the replica, so measurement lives on its own
+server. One tool, two string arguments, the same executor code (T015–T017) behind it.
+
+**Alternatives considered**: the Bench runs the executor and injects the triple into the
+charge sheet — the Evaluator reduced to reading numbers someone else produced. The
+Evaluator uses the harness's Code Mode sandbox directly — loses the local fallback, the
+fixed 20 s budgets and `script_sha256`.
 
 ## C. Remaining assumptions
 

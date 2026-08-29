@@ -6,6 +6,12 @@
 > Anything still an assumption is marked **[ASSUMPTION]**.
 > This doc replaces the brief wherever they contradict each other. Basis for
 > `/speckit.constitution` and `/speckit.specify`.
+>
+> ⚠️ **Design detail here is PARTIALLY SUPERSEDED by
+> [`specs/001-cross-exam-evaluator/research.md`](../specs/001-cross-exam-evaluator/research.md)**
+> — D-03 (one `measure.py`, not Code Mode), D-04 (predicate grammar, not SQL), D-05 (seeded
+> JSON), D-08/D-14 (emoji grammar as the tool-call syntax; harness run with `pnpm exec`, pinned
+> 0.1.4). On conflict, `research.md` wins.
 
 ---
 
@@ -391,7 +397,7 @@ pre-execution**:
 | Confidence score | The agent **evaluating itself** | Exactly what Anthropic's post says fails. The agent is genuinely confident. And wrong |
 | Audit log | What happened | **After** the money is gone |
 
-All five sail past. Not by chance: they all evaluate *the shape of the action*, none of them
+All five sail past — the four pre-execution controls are the ones FR-017/FR-018 contrast. Not by chance: they all evaluate *the shape of the action*, none of them
 *its real reach over the data*. That is, literally, the space where CROSS-EXAM lives.
 
 From Intercom Fin and Lyzr, also verbatim: *"guardrails for money-moving actions must be

@@ -22,7 +22,7 @@ model types.
 | Argument | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `criteria` | `string` | yes | Criteria grammar, [data-model.md](../data-model.md) §5 |
-| `declared_count` | `integer` | yes | the agent's own belief; missing ⇒ `escalate` (FR-002) |
+| `declared_count` | `string` | yes | passed raw from the `🔢` line; the Bench parses it, this server does not — the agent's own belief; missing ⇒ `escalate` (FR-002) |
 | `declared_value` | `string` | yes | `#.##` dollars; missing ⇒ `escalate` |
 
 Annotations: `destructive: true`, `idempotent: false`.
@@ -34,18 +34,23 @@ Same three arguments. Used by the User Story 3 escalation scenario, whose measur
 
 ### `close_account`
 
-Same three arguments. Declared in the catalog for FR-017's "a real money-moving agent"
+Same three arguments. Declared in the catalog for User Story 2's "a real money-moving agent"
 framing; not exercised by the seeded scenario.
 
 ## Behavior on call
 
-1. Evaluate the four guardrails of [data-model.md](../data-model.md) §6 and include the
-   `GuardrailReport` in the tool's proposal payload (FR-017, FR-018).
-2. **Nothing runs at proposal time** — the harness holds the call at `tool.approval_required`.
+1. **Nothing runs at proposal time** — the harness holds the call at `tool.approval_required`.
    The Bench decodes the proposal from the model's own text (T026), never from this server.
-3. On an `allow` resolution, and only then, apply the action to the **production** ledger
+2. On an `allow` resolution, and only then, apply the action to the **production** ledger
    and report completion (FR-014).
-4. On `deny` or an unanswered `escalate`, leave the production ledger untouched (FR-014).
+3. On `deny` or an unanswered `escalate`, leave the production ledger untouched (FR-014).
+
+## What this server does not do
+
+- The four guardrails (FR-017/FR-018) are computed by the Bench from the decoded proposal
+  (research D-13), not here.
+- Measurement is the `measure` tool on the separate read-only server `packages/measure`
+  (research D-15, [measurement-executor.md](./measurement-executor.md)).
 
 ## What this server must never do
 
