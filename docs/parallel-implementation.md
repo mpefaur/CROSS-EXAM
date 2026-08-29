@@ -54,8 +54,8 @@ changing it after either builder has branched breaks both sides at once. C-4 nar
 | **3** | T007 + T008 | **T009** → T010 ‖ T011 → T012 → T013 ‖ T018 → T019 ‖ T022, T023, T024, T027, T028 | 4 lanes |
 | **4** | T009 merged | T015 → T016 *(needs T013)* → T017 ‖ T020 → T021 *(needs T013)* ‖ T025 → T026 ‖ T029 *(needs T018)* | 4 lanes. "Opens when" is the grammar gate only — each lane still carries its own prerequisite in italics |
 | **5** | Wave 4 | T030 → T031 → T032 | **1 — serial join. The 14:30 cutline.** |
-| **6** | T032 | Phase 4 (T033 → T034 → T035 → T036) ‖ Phase 5 (T037 → T038 → T039) — **collide on `demo.ts` and `chargeSheet.ts`, see §3** | 2 with care. Phase 4 first — it is never cut |
-| **7** | T032 **by 14:30 PDT** — otherwise Phases 6, 7 and 8 are cancelled outright | Phase 6 (T040 → T041) ‖ Phase 7 (T042 → T043) — **collide on `evaluator.ts`, see §3**; T043 reopens `resolve.ts` | 2 with care |
+| **6** | T032 | **Serial**: Phase 4 (T033 → T034 → T035 → T036), **then** Phase 5 (T038 → T039). Only T037 (`guardrails.ts`, touches no hot file) may run beside Phase 4 | 1 (+ T037). Both phases edit `demo.ts`, Phase 5 reopens `chargeSheet.ts` — §3 |
+| **7** | T032 **by 14:30 PDT** — otherwise Phases 6, 7 and 8 are cancelled outright | **Serial**: Phase 6 (T040 → T041), **then** Phase 7 (T042 → T043) — `tasks.md` order. T043 reopens `resolve.ts` | 1. T040 and T042 both edit `evaluator.ts` — §3 |
 | **8** | T041 + T043 **before the 16:00 PDT freeze** — otherwise not built | Phase 8: T044 → T045 — T045 reopens `resolve.ts` | 1 |
 | **9** | — | T046 ‖ T047 ‖ T049 at any time · T048 after T032, before 16:00 · **T050 last**, after every phase that was built | 3, then 1 |
 
