@@ -330,16 +330,14 @@ earlier verdict is retrievable.
 
 - **FR-024**: The proposal the acting agent emits, the measurement request and result, and
   the verdict the Evaluator produces MUST each be one line in a flat, emoji-keyed grammar:
-  one leading unicode emoji names the message kind — the tool being called, or the verdict —
-  and the fields follow in a fixed order, separated by `|`, with no nested structures and no
-  JSON-escaped payload inside any field. One emoji per tool; never a generic "action" key
-  with the tool name as a value, and never one key per field. The proposal's fields are the
-  selection criteria, the declared count, and the declared value. Emoji keys are chosen
-  because they are compact and visually unambiguous: one symbol costs fewer tokens than a
-  spelled-out tool name and field names, and it raises parse accuracy on small models. The
-  key set, arities and field order are the registry in
-  [docs/emoji-grammar.md](../../docs/emoji-grammar.md), which is the single source of
-  truth both agents encode and decode against.
+  one leading unicode emoji names the message kind — the tool being called, the
+  measurement, or the verdict — and its fields follow in a fixed order, delimited, with no
+  nested structures and no JSON-escaped payload inside any field. One emoji per tool; never
+  a generic "action" key with the tool name as a value, and never one key per field. The
+  proposal's fields are the selection criteria, the declared count, and the declared value.
+  The key set, the delimiter, arities and field order are the registry in
+  [docs/emoji-grammar.md](../../docs/emoji-grammar.md), the single source of truth both
+  agents encode and decode against.
 - **FR-025**: A message that does not parse under that grammar MUST NOT be re-parsed
   under a looser one, and no undelimited field value may be inferred: a field count other
   than the key's arity is a parse failure. An unparseable proposal yields no measurement and

@@ -81,7 +81,8 @@ first, then three `|`-separated fields in this order.
 | `declared_value_cents` | 3 | `integer` | yes | parsed from `#.##` dollars; missing ⇒ `escalate` |
 
 **Validation**
-- All four keys present exactly once. A repeated key is a parse failure.
+- One line. The key is one of the three tool emoji; exactly three fields follow — any other
+  field count is a parse failure (FR-025).
 - `declared_count >= 0`, `declared_value_cents >= 0`.
 - A parse failure is terminal: never re-parsed under a looser grammar (FR-025), yields no
   measurement, therefore `escalate` (FR-010).
