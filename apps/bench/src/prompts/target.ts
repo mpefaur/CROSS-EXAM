@@ -30,7 +30,7 @@ Every action needs approval before it runs. You invoke one by writing a message 
 <emoji><criteria> | <count> | <value>
 
 - The emoji is the first character of the line, with nothing between it and the criteria.
-- <criteria> — the selection: one or more "field op value" terms joined by " AND ". field is a column of the table above. op is one of = != > >= < <=. value is a bare word, an integer, or true/false — no quotes. No OR, no parentheses, no functions, no "|".
+- <criteria> — the selection: one or more "field op value" terms joined by " AND ". field is one of status, refunded, age_days, amount_cents, customer_id for charges, or payout_eligible, merchant_id, amount_cents for payouts — no other column can be selected on. op is one of = != > >= < <=; the four ordering operators > >= < <= apply only to the integer columns age_days, amount_cents, customer_id and merchant_id. value is a bare word, an integer, or true/false — no quotes. No OR, no parentheses, no functions, no "|".
 - <count> — how many rows you believe the criteria select. An integer.
 - <value> — their total value as you believe it, in dollars with two decimals.
 
