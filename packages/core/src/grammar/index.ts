@@ -12,7 +12,6 @@
  */
 
 import type {
-  ActionName,
   EvaluatorVerdict,
   MeasuredTriple,
   ProposedAction,
@@ -60,12 +59,6 @@ const MEASUREMENT_KEYS: ReadonlySet<string> = new Set([
   DUPLICATE_COUNT,
 ]);
 
-const ACTION_NAMES: readonly string[] = ['bulk_refund', 'issue_payout', 'close_account'];
-
-function isActionName(value: string): value is ActionName {
-  return ACTION_NAMES.includes(value);
-}
-
 /** Models add the variation selector to `⚖`, `♻`, `🗂`; every decoder drops one leading one. */
 const VARIATION_SELECTOR = '\uFE0F';
 
@@ -87,9 +80,11 @@ function parseLines(
     if (line.trim() === '') continue;
 
     // The key is the line's first *codepoint*: most keys are surrogate pairs, so `line[0]`
-    // would read half of one.
-    const key = Array.from(line)[0];
-    if (key === undefined || !registered.has(key)) {
+    // would read half of one. The guard above leaves only non-blank lines, so the array is
+    // non-empty — that invariant is stated in the type, since `noUncheckedIndexedAccess` is
+    // the only reason a first element would read as `undefined` here.
+    const [key] = Array.from(line) as [string, ...string[]];
+    if (!registered.has(key)) {
       return { ok: false, error: `unregistered key for this direction: ${JSON.stringify(key)}` };
     }
     if (fields.has(key)) {
@@ -140,8 +135,8 @@ function badNumber(key: string): string {
 
 /**
  * The acting agent's proposal. All four keys are required; their absence escalates at the
- * caller (obligation 7, FR-002). `🧾measure` is rejected because `measure` is not an
- * `ActionName` — it belongs to the measurement request, not to a proposal.
+ * caller (obligation 7, FR-002). `🧾measure` is rejected because `measure` is not one of the
+ * three action names — it belongs to the measurement request, not to a proposal.
  */
 export function decodeProposal(text: string): DecodeResult<ProposedAction> {
   const parsed = parseLines(text, PROPOSAL_KEYS);
@@ -150,7 +145,7 @@ export function decodeProposal(text: string): DecodeResult<ProposedAction> {
 
   const action = fields.get(ACTION);
   if (action === undefined) return { ok: false, error: missing(ACTION) };
-  if (!isActionName(action)) {
+  if (action !== 'bulk_refund' && action !== 'issue_payout' && action !== 'close_account') {
     return { ok: false, error: `unknown action for key ${ACTION}: ${JSON.stringify(action)}` };
   }
 
