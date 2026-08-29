@@ -24,7 +24,7 @@
  * below mirror its `CRITERIA_FIELDS`, `TERM` and `OPS` exactly.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -119,7 +119,12 @@ function parseCriteria(text: string, table: LedgerTable): Term[] | string {
     }
     if (type === 'integer') {
       if (!/^-?\d+$/u.test(raw)) return `integer column needs an integer literal: ${raw}`;
-      terms.push({ field, op, value: Number(raw), type });
+      const value = Number(raw);
+      // `measure.py` compares with Python's exact `int`. A literal `Number` cannot hold
+      // exactly would make this execution match a different row set than the measurement
+      // the verdict cited, so it is rejected rather than silently rounded.
+      if (!Number.isSafeInteger(value)) return `integer literal is not exactly representable: ${raw}`;
+      terms.push({ field, op, value, type });
     } else if (type === 'boolean') {
       if (raw !== 'true' && raw !== 'false') return `boolean column needs true/false: ${raw}`;
       terms.push({ field, op, value: raw === 'true', type });
@@ -211,6 +216,34 @@ function refuse(reason: string): ExecutionRefusal {
   return { executed: false, reason };
 }
 
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Write the ledger, or return why it could not be written.
+ *
+ * The new bytes go to a temporary file beside the ledger and are then renamed over it, so a
+ * failed write leaves the previous ledger whole. That is what makes the refusal below
+ * truthful: "nothing was applied" has to be a fact, not a hope, and a half-written
+ * production ledger would be exactly the unverified claim this project exists to refuse.
+ */
+function writeLedger(ledgerPath: string, ledger: unknown): string | null {
+  const temporary = `${ledgerPath}.crossexam-${String(process.pid)}.tmp`;
+  try {
+    writeFileSync(temporary, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
+    renameSync(temporary, ledgerPath);
+    return null;
+  } catch (error) {
+    try {
+      rmSync(temporary, { force: true });
+    } catch {
+      // The temporary file is not the ledger; failing to remove it changes nothing.
+    }
+    return `ledger could not be written, so nothing was applied: ${describe(error)}`;
+  }
+}
+
 /**
  * Apply `proposal` to the production ledger — on an `allow` resolution and only then
  * (FR-014) — and report the count and total this call computed while applying it.
@@ -242,7 +275,7 @@ export function executeOnAllow(
   try {
     ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));
   } catch (error) {
-    return refuse(`ledger could not be read: ${error instanceof Error ? error.message : String(error)}`);
+    return refuse(`ledger could not be read: ${describe(error)}`);
   }
   if (typeof ledger !== 'object' || ledger === null) return refuse('ledger is not an object');
   const { seed, as_of: asOf } = ledger as { seed?: unknown; as_of?: unknown };
@@ -271,7 +304,10 @@ export function executeOnAllow(
   }
 
   // Written only when a row changed, in the fixture's own stable form (`pnpm seed`).
-  if (count > 0) writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
+  if (count > 0) {
+    const failure = writeLedger(ledgerPath, ledger);
+    if (failure !== null) return refuse(failure);
+  }
 
   return {
     executed: true,
