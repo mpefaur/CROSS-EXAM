@@ -37,8 +37,8 @@ export interface Config {
   measure_server_url: string;
   /** The only ledger the `measure` server opens. */
   replica_path: string;
-  /** D-14 — the harness adapter's registry JSON. Unset leaves the adapter inert. */
-  grammar_registry: string | null;
+  /** D-14 — path to the grammar registry file the harness adapter reads. Unset leaves the adapter inert. */
+  grammar_registry_path: string | null;
   credentials: Credentials;
 }
 
@@ -101,7 +101,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     action_server_url: str(env, 'CROSSEXAM_ACTION_SERVER_URL', 'http://localhost:8801'),
     measure_server_url: str(env, 'CROSSEXAM_MEASURE_SERVER_URL', 'http://localhost:8802'),
     replica_path: str(env, 'CROSSEXAM_REPLICA_PATH', 'fixtures/replica.json'),
-    grammar_registry: str(env, 'CROSSEXAM_GRAMMAR_REGISTRY', '') || null,
+    grammar_registry_path: str(env, 'CROSSEXAM_GRAMMAR_REGISTRY_PATH', '') || null,
     credentials,
   };
 }

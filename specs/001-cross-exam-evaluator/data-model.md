@@ -262,8 +262,8 @@ from a later session (FR-021).
 ## 12. Configuration
 
 All from the environment, no value in the repository (FR-023, Constitution VI). Names only
-in `.env.example` — with one stated, non-secret exception: `CROSSEXAM_GRAMMAR_REGISTRY` carries
-the full registry there, because it is configuration the harness needs and not a credential.
+in `.env.example` — with one stated, non-secret exception: `CROSSEXAM_GRAMMAR_REGISTRY_PATH`
+carries its real value there, a repository path and not a credential.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -279,7 +279,7 @@ the full registry there, because it is configuration the harness needs and not a
 | `CROSSEXAM_ACTION_SERVER_URL` | `http://localhost:8801` | the action server, `packages/mcp` (registered on the target agent) |
 | `CROSSEXAM_MEASURE_SERVER_URL` | `http://localhost:8802` | the `measure` server, `packages/measure` (registered on the Evaluator; D-15) |
 | `CROSSEXAM_REPLICA_PATH` | `fixtures/replica.json` | the only ledger the `measure` server opens. Server ports sit at `:880x`, clear of TrueForge's `:8790` (local) and `:8791` (hosted) |
-| `CROSSEXAM_GRAMMAR_REGISTRY` | — (required for the demo; unset → adapter inert) | research D-14 — JSON: emoji → `[tool_name, ...argument_names]`, one entry per tool key, argument names in field order. Mirrors [docs/emoji-grammar.md](../../docs/emoji-grammar.md) |
+| `CROSSEXAM_GRAMMAR_REGISTRY_PATH` | — (required for the demo; unset → adapter inert) | research D-14 — path to `packages/core/src/grammar/registry.json`, the one registry file the decoders import and the harness adapter reads. Relative to the directory the harness starts from |
 | `DAYTONA_API_KEY` | — (required) | needs Sandboxes **and** Snapshots(create) — Risk R1 |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | — (required) | model providers |
 

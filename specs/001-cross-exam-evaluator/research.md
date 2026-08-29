@@ -386,18 +386,13 @@ one more surface for a computation the Bench can do on data it already holds.
 `llm:` factory in `apis/turns.ts` (`dist/main.js:10328` in 0.1.4, one unminified bundle with a
 source map) constructs `new VercelAILLM(...)`; wrap it in `GrammarToolCallLLM`, an `ILLM`
 implementation (`create()` / `createNonStream()`), ~80 lines. **Generic and registry-driven,
-not hardcoded to our keys.** At harness start it reads `CROSSEXAM_GRAMMAR_REGISTRY`
-(data-model §12): a JSON object mapping each tool emoji to `[tool_name, ...argument_names]`,
-argument names in field order. Unset → the wrapper is inert and the harness behaves stock.
-Either way it logs one line at start — the key count and the tool names, or `inert` — so a
-stock harness is never mistaken for a model that did not propose.
-
-```json
-{"🧾":["bulk_refund","criteria","declared_count","declared_value"],
- "💸":["issue_payout","criteria","declared_count","declared_value"],
- "🔒":["close_account","criteria","declared_count","declared_value"],
- "📏":["measure","criteria","table"]}
-```
+not hardcoded to our keys.** At harness start it reads the registry file named by
+`CROSSEXAM_GRAMMAR_REGISTRY_PATH` (data-model §12) — `packages/core/src/grammar/registry.json`,
+the same file the grammar decoders import, so there is one source of keys — and keeps its
+`kind: "tool"` entries: emoji → tool name and argument names in field order. Unset → the
+wrapper is inert and the harness behaves stock. Either way it logs one line at start — the
+tool-key count and the tool names, or `inert` — so a stock harness is never mistaken for a
+model that did not propose.
 
 The wrapper is symmetric:
 

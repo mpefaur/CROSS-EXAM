@@ -18,7 +18,8 @@ decodeMeasurement(text: string): DecodeResult<MeasuredTriple>   // 🧮 — meas
 Obligations:
 
 1. Ignore lines that are empty or whitespace-only. Exactly one line MUST remain; zero or
-   more than one is a parse failure. Its first codepoint MUST be a registered key accepted
+   more than one is a parse failure. Trim its surrounding whitespace (model output is often
+   indented); the first codepoint of what remains MUST be a registered key accepted
    by **that decoder** — a verdict key in `decodeProposal`, or a tool key in
    `decodeVerdict`, is a parse failure. One leading `U+FE0F` after the key is dropped
    (models add the variation selector to some symbols; the D-14 adapter drops it the same way).

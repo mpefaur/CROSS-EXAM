@@ -1,0 +1,9 @@
+{
+  "🧾": { "kind": "tool", "tool": "bulk_refund", "fields": ["criteria", "declared_count", "declared_value"] },
+  "💸": { "kind": "tool", "tool": "issue_payout", "fields": ["criteria", "declared_count", "declared_value"] },
+  "🔒": { "kind": "tool", "tool": "close_account", "fields": ["criteria", "declared_count", "declared_value"] },
+  "📏": { "kind": "tool", "tool": "measure", "fields": ["criteria", "table"] },
+  "🧮": { "kind": "measurement", "fields": ["measured_count", "measured_value", "duplicate_count"] },
+  "✅": { "kind": "verdict", "verdict": "allow", "fields": ["measured_count", "measured_value", "duplicate_count", "reason"] },
+  "⛔": { "kind": "verdict", "verdict": "deny", "fields": ["measured_count", "measured_value", "duplicate_count", "reason"] }
+}
