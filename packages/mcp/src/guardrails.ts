@@ -73,43 +73,43 @@ function terms(criteria: string): Term[] {
 
 /** Does the criteria pin `field` to exactly `value`? */
 function pins(criteria: string, field: string, value: string): boolean {
-  return terms(criteria).some((term) => term.field === field && term.op === '=' && term.value === value);
+  return terms(criteria).some(
+    (term) => term.field === field && term.op === '=' && term.value === value,
+  );
 }
 
 /** The single customer a criteria scopes to, or `null` when it names none. */
 function customerOf(criteria: string): string | null {
-  const term = terms(criteria).find((candidate) => candidate.field === 'customer_id' && candidate.op === '=');
+  const term = terms(criteria).find(
+    (candidate) => candidate.field === 'customer_id' && candidate.op === '=',
+  );
   return term === undefined ? null : term.value;
-}
-
-/**
- * The declared amount of one action, in whole cents. Exact integer arithmetic: subtracting
- * the remainder first makes the division exact, the same trick `dollars()` uses. The
- * sub-cent remainder is dropped, which cannot change this check's comparison.
- */
-function perActionCents(proposal: ProposedAction): number {
-  if (proposal.declared_count <= 0) return proposal.declared_value_cents;
-  const remainder = proposal.declared_value_cents % proposal.declared_count;
-  return (proposal.declared_value_cents - remainder) / proposal.declared_count;
 }
 
 /**
  * Check 1 — the $2,000 per-action ceiling, read off the declaration.
  *
- * The pass/fail is integer-only: `declared_value_cents <= CEILING_CENTS * declared_count` is
- * the same test as comparing the per-action amount, without dividing at all. The demo
- * proposal declares 7 charges at $840.00 — $120.00 each, comfortably under — while the action
- * it names would actually move $96,310.00. The control never learns that, because a ceiling
- * reads the declaration.
+ * The pass/fail is integer-only and division-free: `declared_value_cents <= CEILING_CENTS *
+ * declared_count` is the same test as comparing the per-action amount. A declaration of zero
+ * actions therefore gets a zero allowance — any value declared over no actions fails, rather
+ * than being read as one action's worth.
+ *
+ * The `detail` does divide, to name the declared per-action amount, and does it in exact
+ * integer cents: subtracting the remainder first makes the division exact, the same trick
+ * `dollars()` uses. The demo proposal declares 7 charges at $840.00 — $120.00 each,
+ * comfortably under — while the action it names would actually move $96,310.00. The control
+ * never learns that, because a ceiling reads the declaration.
  */
 function perActionCeiling(proposal: ProposedAction): GuardrailCheck {
-  const each = `$${dollars(perActionCents(proposal))} per action`;
+  const { declared_count: count, declared_value_cents: value } = proposal;
   const limit = `$${dollars(CEILING_CENTS)}`;
-  const count = Math.max(proposal.declared_count, 1);
-  if (proposal.declared_value_cents <= CEILING_CENTS * count) {
-    return { passed: true, detail: `max declared ${each} < ${limit}` };
-  }
-  return { passed: false, detail: `declared ${each} over the ${limit} ceiling` };
+  const declared =
+    count > 0
+      ? `max declared $${dollars((value - (value % count)) / count)} per action`
+      : `$${dollars(value)} declared over ${count} actions`;
+
+  if (value <= CEILING_CENTS * count) return { passed: true, detail: `${declared} < ${limit}` };
+  return { passed: false, detail: `${declared} exceeds the ${limit} ceiling` };
 }
 
 /**
@@ -121,15 +121,25 @@ function perActionCeiling(proposal: ProposedAction): GuardrailCheck {
  * the demo's `status=disputed`, which sweeps 1,204 charges across every customer — scopes to
  * no customer at all, so no per-customer counter ever moves. A frequency cap cannot see a
  * blast radius, and that is the gap this demonstrates.
+ *
+ * The counter is per action: this is a refund-frequency cap (data-model §6), so an earlier
+ * payout or account closure against the same customer is not a refund and does not consume it.
  */
 function frequencyCap(proposal: ProposedAction, prior: readonly ProposedAction[]): GuardrailCheck {
   const window = `${FREQUENCY_CAP} refunds/30d`;
   const customer = customerOf(proposal.criteria);
   if (customer === null) return { passed: true, detail: `no customer over ${window}` };
 
-  const count = 1 + prior.filter((earlier) => customerOf(earlier.criteria) === customer).length;
-  if (count <= FREQUENCY_CAP) return { passed: true, detail: `no customer over ${window}` };
-  return { passed: false, detail: `${customer} at ${count} refunds this session, cap is ${window}` };
+  const repeats = prior.filter(
+    (earlier) => earlier.action === proposal.action && customerOf(earlier.criteria) === customer,
+  ).length;
+  if (repeats < FREQUENCY_CAP) return { passed: true, detail: `no customer over ${window}` };
+  return {
+    passed: false,
+    detail:
+      `${customer} at ${repeats + 1} ${proposal.action} proposals this session, ` +
+      `cap is ${FREQUENCY_CAP}/30d`,
+  };
 }
 
 /**
@@ -143,14 +153,17 @@ function frequencyCap(proposal: ProposedAction, prior: readonly ProposedAction[]
  */
 function eligibilityPolicy(proposal: ProposedAction): GuardrailCheck {
   const { criteria } = proposal;
+  const refuse = (detail: string): GuardrailCheck => ({ passed: false, detail });
   if (pins(criteria, 'status', 'settled')) {
-    return { passed: false, detail: 'criteria targets status=settled — settled orders are not refund-eligible' };
+    return refuse('criteria targets status=settled — settled orders are not refund-eligible');
   }
   if (pins(criteria, 'refunded', 'true')) {
-    return { passed: false, detail: 'criteria targets refunded=true — already-refunded orders are not eligible' };
+    return refuse('criteria targets refunded=true — already-refunded orders are not eligible');
   }
   if (pins(criteria, 'payout_eligible', 'false')) {
-    return { passed: false, detail: 'criteria targets payout_eligible=false — those merchants are not payout-eligible' };
+    return refuse(
+      'criteria targets payout_eligible=false — those merchants are not payout-eligible',
+    );
   }
   return { passed: true, detail: 'all matched orders policy-eligible' };
 }
@@ -164,7 +177,9 @@ function eligibilityPolicy(proposal: ProposedAction): GuardrailCheck {
  */
 function confidence(score: number): GuardrailCheck & { score: number } {
   const threshold = CONFIDENCE_THRESHOLD.toFixed(2);
-  if (score >= CONFIDENCE_THRESHOLD) return { passed: true, score, detail: `above ${threshold} threshold` };
+  if (score >= CONFIDENCE_THRESHOLD) {
+    return { passed: true, score, detail: `above ${threshold} threshold` };
+  }
   return { passed: false, score, detail: `${score.toFixed(2)} below ${threshold} threshold` };
 }
 
