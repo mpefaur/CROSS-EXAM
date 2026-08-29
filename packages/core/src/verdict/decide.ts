@@ -23,13 +23,7 @@ import type {
   ProposedAction,
 } from '../model/case.ts';
 import type { Config } from '../model/config.ts';
-
-/**
- * Structurally the `DecodeResult<T>` that T009 defines in `../grammar/index.ts`, declared
- * here so this module compiles while that branch is still open. The two converge — this
- * alias is dropped for the import once the grammar lands.
- */
-type DecodeResult<T> = { ok: true; value: T } | { ok: false; error: string };
+import { dollars, encodeMeasurement, type DecodeResult } from '../grammar/index.ts';
 
 /** What the Bench tracks per held action so `decide()` need not (D-06, D-09). */
 export interface CaseState {
@@ -41,12 +35,12 @@ export interface CaseState {
 
 /** Display edge only — the system holds money as integer cents (data-model §1). */
 function usd(cents: number): string {
-  return `$${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
+  return `$${dollars(cents)}`;
 }
 
-/** The observed triple in the Evaluator's own grammar keys, for a guidance message. */
+/** The observed triple as the `🧮` line the Evaluator read, for a guidance message. */
 function figures(m: Measurement): string {
-  return `🧮${m.measured_count} 💰${usd(m.measured_value_cents)} ♻${m.duplicate_count}`;
+  return encodeMeasurement(m);
 }
 
 /**
@@ -118,12 +112,12 @@ export function decide(
     const asked =
       observed === null
         ? 'You called `measure` on nothing this turn.'
-        : `Your last \`measure\` call asked for 🔍${observed.criteria} 🗂${observed.table}` +
+        : `Your last \`measure\` call was \`📏${observed.criteria} | ${observed.table}\`` +
           (observed.result === null ? ' and produced no result.' : ` → ${figures(observed.result)}.`);
     return guidance(
       '2a',
-      `${asked} Measure the proposal's exact criteria on \`${table}\` — call \`measure\` with ` +
-        `🔍${proposal.value.criteria} and 🗂${table} — then write your verdict from what it returns.`,
+      `${asked} Measure the proposal's exact criteria on \`${table}\` — write exactly ` +
+        `\`📏${proposal.value.criteria} | ${table}\` — then write your verdict from what it returns.`,
       observed,
       state,
       config,
@@ -162,30 +156,30 @@ export function decide(
   }
 
   // Rule 4 — the Evaluator's message is not a verdict, or does not cite what it measured.
-  // `⚖escalate` lands here too: escalation is the system's to write (Constitution II).
+  // Any attempt at an escalation lands here too: it has no key, because escalation is the
+  // system's to write (Constitution II).
   if (!evaluatorVerdict.ok) {
     return guidance(
       '4',
       `Your message did not decode as a verdict (${evaluatorVerdict.error}). Write exactly one ` +
-        `⚖allow or ⚖deny line — ⚖escalate is not yours to write — with the figures you measured: ` +
-        `${figures(result)}.`,
+        `line, ✅ or ⛔ then \`count | value | duplicates | reason\` — escalation is not yours to ` +
+        `write — with the figures you measured: ${figures(result)}.`,
       observed,
       state,
       config,
     );
   }
-  // A `null` `cited` counts as differing: an uncited ⚖allow/⚖deny is exactly what rule 4
-  // catches. Each figure compared exactly — a tolerance is a threshold nobody specified (D-06).
+  // Each figure compared exactly — a tolerance is a threshold nobody specified (D-06).
   const cited = evaluatorVerdict.value.cited;
+  const mark = evaluatorVerdict.value.verdict === 'allow' ? '✅' : '⛔';
   if (
-    cited === null ||
     cited.measured_count !== result.measured_count ||
     cited.measured_value_cents !== result.measured_value_cents ||
     cited.duplicate_count !== result.duplicate_count
   ) {
     return guidance(
       '4',
-      `Your ⚖${evaluatorVerdict.value.verdict} does not cite the measurement it rests on. ` +
+      `Your ${mark} does not cite the measurement it rests on. ` +
         `Re-issue it with the figures you actually measured: ${figures(result)}.`,
       observed,
       state,
@@ -199,22 +193,22 @@ export function decide(
     const mismatches: string[] = [];
     if (result.measured_count !== proposal.value.declared_count) {
       mismatches.push(
-        `declared 🔢${proposal.value.declared_count} rows, measured 🧮${result.measured_count}`,
+        `declared ${proposal.value.declared_count} rows, measured ${result.measured_count}`,
       );
     }
     if (result.measured_value_cents !== proposal.value.declared_value_cents) {
       mismatches.push(
-        `declared 💵${usd(proposal.value.declared_value_cents)}, ` +
-          `measured 💰${usd(result.measured_value_cents)}`,
+        `declared ${usd(proposal.value.declared_value_cents)}, ` +
+          `measured ${usd(result.measured_value_cents)}`,
       );
     }
     if (result.duplicate_count > 0) {
-      mismatches.push(`♻${result.duplicate_count} of those rows were already acted on`);
+      mismatches.push(`${result.duplicate_count} of those rows were already acted on`);
     }
     if (mismatches.length > 0) {
       return guidance(
         '5',
-        `You wrote ⚖allow on a proposal your own measurement contradicts:\n` +
+        `You wrote ✅ on a proposal your own measurement contradicts:\n` +
           mismatches.map((line) => `- ${line}`).join('\n') +
           `\nMeasured: ${figures(result)}. Re-issue the verdict these figures support.`,
         observed,
@@ -224,11 +218,11 @@ export function decide(
     }
   }
 
-  // Rule 6 — the Evaluator's verdict stands, with its own `📝` and the measurement it
+  // Rule 6 — the Evaluator's verdict stands, with its own reason and the measurement it
   // cited. The only branch that emits `allow` or `deny`, and it authors neither.
   return {
     verdict: evaluatorVerdict.value.verdict,
-    reason: evaluatorVerdict.value.reason ?? '',
+    reason: evaluatorVerdict.value.reason,
     evidence: result,
     rule: '6',
   };
