@@ -18,7 +18,6 @@ import type {
   EvaluatorVerdict,
   Guidance,
   MeasureAttempt,
-  MeasuredTriple,
   Measurement,
   Outcome,
   ProposedAction,
@@ -48,15 +47,6 @@ function usd(cents: number): string {
 /** The observed triple in the Evaluator's own grammar keys, for a guidance message. */
 function figures(m: Measurement): string {
   return `🧮${m.measured_count} 💰${usd(m.measured_value_cents)} ♻${m.duplicate_count}`;
-}
-
-function differs(cited: MeasuredTriple | null, observed: Measurement): boolean {
-  return (
-    cited === null ||
-    cited.measured_count !== observed.measured_count ||
-    cited.measured_value_cents !== observed.measured_value_cents ||
-    cited.duplicate_count !== observed.duplicate_count
-  );
 }
 
 /**
@@ -184,7 +174,15 @@ export function decide(
       config,
     );
   }
-  if (differs(evaluatorVerdict.value.cited, result)) {
+  // A `null` `cited` counts as differing: an uncited ⚖allow/⚖deny is exactly what rule 4
+  // catches. Each figure compared exactly — a tolerance is a threshold nobody specified (D-06).
+  const cited = evaluatorVerdict.value.cited;
+  if (
+    cited === null ||
+    cited.measured_count !== result.measured_count ||
+    cited.measured_value_cents !== result.measured_value_cents ||
+    cited.duplicate_count !== result.duplicate_count
+  ) {
     return guidance(
       '4',
       `Your ⚖${evaluatorVerdict.value.verdict} does not cite the measurement it rests on. ` +
