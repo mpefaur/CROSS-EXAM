@@ -1,0 +1,135 @@
+import { createHash } from 'node:crypto';
+import { readdir, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+import { MEASURE_SCRIPT_PATH, measure as run } from '../src/measure/index.ts';
+import type { LedgerTable } from '../src/model/entities.ts';
+
+/**
+ * `measure()` against the committed replica — the real `python3`, the real `measure.py`,
+ * the real fixture. Nothing is mocked: the one thing this function exists to guarantee is
+ * that a `Measurement` came out of executed code (Constitution II).
+ *
+ * The expected figures are the cohort table of research D-05.
+ */
+
+const LEDGER = resolve(import.meta.dirname, '../../../fixtures/replica.json');
+const TEMP_PREFIX = 'crossexam-measure-';
+
+const measure = (table: LedgerTable, criteria: string, ledgerPath = LEDGER, timeoutMs = 20_000) =>
+  run({ ledgerPath, table, criteria, signal: AbortSignal.timeout(timeoutMs) });
+
+/** How many working directories this executor has left behind in the system temp dir. */
+async function strayDirectories(): Promise<number> {
+  const entries = await readdir(tmpdir());
+  return entries.filter((entry) => entry.startsWith(TEMP_PREFIX)).length;
+}
+
+describe('measure', () => {
+  it('measures the disputed cohort the demo turns on', async () => {
+    const result = await measure('charges', 'status=disputed');
+    expect(result).toMatchObject({
+      measured_count: 1204,
+      measured_value_cents: 9_631_000,
+      duplicate_count: 611,
+      executor: 'local',
+      criteria: 'status=disputed',
+      table: 'charges',
+    });
+  });
+
+  it('measures a multi-term criteria, so the AND is not lost between the layers', async () => {
+    const result = await measure('charges', 'status=disputed AND refunded=false');
+    expect(result).toMatchObject({
+      measured_count: 593,
+      measured_value_cents: 4_751_000,
+      duplicate_count: 0,
+    });
+  });
+
+  it('measures the payouts table', async () => {
+    const result = await measure('payouts', 'payout_eligible=true');
+    expect(result).toMatchObject({
+      measured_count: 342,
+      measured_value_cents: 41_822_000,
+      duplicate_count: 0,
+      table: 'payouts',
+    });
+  });
+
+  it('records the digest of the measure.py that actually ran', async () => {
+    const onDisk = createHash('sha256').update(await readFile(MEASURE_SCRIPT_PATH)).digest('hex');
+    const result = await measure('charges', 'status=disputed');
+    expect(result?.script_sha256).toBe(onDisk);
+  });
+
+  it('reports a duration inside the attempt budget', async () => {
+    const result = await measure('charges', 'status=disputed');
+    expect(result?.duration_ms).toBeGreaterThanOrEqual(0);
+    expect(result?.duration_ms).toBeLessThan(20_000);
+  });
+
+  // No measurement — every one of these is `null`, never a throw, because the verdict rules
+  // act on the absence of a measurement (D-06 rule 2b) and cannot act on an exception.
+
+  it('returns null when the criteria does not parse (exit 2)', async () => {
+    await expect(measure('charges', 'status ~ disputed')).resolves.toBeNull();
+  });
+
+  it('returns null when the criteria names a field outside the grammar (exit 2)', async () => {
+    await expect(measure('charges', 'refunded_at=null')).resolves.toBeNull();
+  });
+
+  it('returns null when the ledger is missing (exit 3)', async () => {
+    await expect(measure('charges', 'status=disputed', `${LEDGER}.nope`)).resolves.toBeNull();
+  });
+
+  it('returns null when the ledger is not a ledger (exit 3)', async () => {
+    await expect(measure('charges', 'status=disputed', MEASURE_SCRIPT_PATH)).resolves.toBeNull();
+  });
+
+  it('returns null when the signal is already spent', async () => {
+    await expect(measure('charges', 'status=disputed', LEDGER, 1)).resolves.toBeNull();
+  });
+
+  /**
+   * The setup steps — reading `measure.py`, making the working directory — are failures to
+   * measure like any other. An unusable temp directory makes `mkdtemp` fail for real,
+   * without mocking a builtin.
+   *
+   * `os.tmpdir()` reads a different variable per platform — `TMPDIR`/`TMP`/`TEMP` on POSIX,
+   * `TEMP`/`TMP` on Windows — so all three are redirected and the test asserts the same
+   * thing everywhere instead of quietly passing on the platform it was written on.
+   */
+  it('returns null instead of rejecting when the temporary directory cannot be made', async () => {
+    const vars = ['TMPDIR', 'TMP', 'TEMP'] as const;
+    const previous = vars.map((name) => [name, process.env[name]] as const);
+    const unusable = resolve(tmpdir(), 'crossexam-no-such-directory');
+    for (const name of vars) process.env[name] = unusable;
+    try {
+      await expect(measure('charges', 'status=disputed')).resolves.toBeNull();
+    } finally {
+      for (const [name, value] of previous) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
+
+  /**
+   * Asserts the cleanup, not the ordering: no working directory survives a measurement, an
+   * abort or a parse failure. The `close`-before-settle ordering in `runScript` is what
+   * makes the aborted attempt provably over before that cleanup runs, and this assertion
+   * does not distinguish the two — on POSIX the deletion succeeds against a directory a
+   * dying process still holds open.
+   */
+  it('leaves no working directory behind, measured or aborted', async () => {
+    const before = await strayDirectories();
+    await measure('charges', 'status=disputed');
+    await measure('charges', 'status=disputed', LEDGER, 1);
+    await measure('charges', 'nonsense');
+    expect(await strayDirectories()).toBe(before);
+  });
+});
