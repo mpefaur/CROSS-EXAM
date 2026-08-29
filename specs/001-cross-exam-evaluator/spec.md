@@ -262,8 +262,8 @@ earlier verdict is retrievable.
 - **FR-009**: `allow` and `deny` MUST each cite numbers produced by the measurement.
   A verdict path MUST NOT emit `allow` or `deny` from reasoning alone.
 - **FR-010**: When a measurement was attempted on the proposal's exact criteria and none was
-  produced — for any reason, including infrastructure failure or the case's wall-clock
-  budget running out — the verdict MUST be `escalate`. A measurement attempt that has not returned
+  produced — for any reason, including infrastructure failure — or the case's wall-clock
+  budget runs out before one is produced, the verdict MUST be `escalate`. A measurement attempt that has not returned
   within 20 seconds MUST be abandoned and counts as producing no measurement; the fallback
   executor of FR-004 is then attempted under the same 20-second limit.
 - **FR-011**: When the measured value at stake exceeds the configured escalation

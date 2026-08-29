@@ -158,7 +158,10 @@ it with zero setup.
 
 **Decision**: The Evaluator — a model — measures by calling the `measure` tool (D-15) and
 then writes the verdict in the grammar. Code never approves and never denies. One pure
-function, `decide(proposal, evaluatorVerdict, observed, config) → Outcome`, where
+function, `decide(proposal, evaluatorVerdict, observed, state, config) → Outcome`, where
+`state = { guidances: number, elapsed_ms: number }` is the held action's guidance count and
+age as the Bench tracks them (so `decide()` stays pure and the cap and the budget are unit
+testable),
 `evaluatorVerdict` is the `DecodeResult<EvaluatorVerdict>` of the Evaluator's message
 (data-model §9) and `observed` is the **last** `measure` tool result of the Evaluator's turn,
 as the Bench read it from the tool-result event (`null` when no call produced a result).
@@ -181,7 +184,9 @@ infrastructure condition and escalates under rule 2b.
      `criteria`/`table` differ from the proposal's `🔍` and `tableFor(action)` (data-model
      §4) → **`Guidance`**: "measure the proposal's exact criteria on `<table>`".
    - **2b** `measure` was called on the right criteria but produced nothing — both executors
-     failed or exceeded their 20 s budget → **`escalate`** (FR-004, FR-010).
+     failed or exceeded their 20 s budget — **or** the case's wall clock
+     `CROSSEXAM_CASE_BUDGET_MS` expired, whatever was or was not called → **`escalate`**
+     (FR-004, FR-010). Checked first within rule 2, before 2a.
 3. `observed.value > escalation_threshold` → **`escalate`**, citing the observed figures
    (FR-011).
 4. The Evaluator's message did not decode as a verdict, or on `⚖allow`/`⚖deny` (or whenever a
@@ -212,7 +217,8 @@ seeded data makes exactness free.
   guards them.
 - *Rules 2a/4/5 escalate* (the previous form): a human interrupted for a tool-usage slip the
   model would fix on the next turn. Rejected — escalation is for data.
-- *A retry cap on guidance*: a threshold nobody specified; the turn budget already bounds it.
+- *An unbounded guidance loop*: a stuck Evaluator would hold the case until a person killed the
+  run; the retry cap and the case wall clock bound it instead.
 - *A percentage tolerance on the declared figures*: speculative configuration with one
   possible value (Constitution VIII).
 
