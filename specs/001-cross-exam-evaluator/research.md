@@ -23,7 +23,7 @@ fell short. The check is done once, here; `plan.md` cites the outcome.
 | Hold an irreversible tool call before it runs | **Yes** — `require_approval_for_tools`, per-MCP-server policy, settable to `["@all"]` (`agent-session/schemas/agentSpec.ts:95-101`) | Use natively. No own gate. |
 | Deliver a denial reason back to the acting agent | **Yes** — `deny.reason`, *"Optional reason shown to the agent when denied"* (`core/events/schema.ts:72-76`) | Use natively. **No agent-to-agent protocol is written.** |
 | Re-proposal after a denial | **Yes** — emergent from the above; the agent reads the reason and proposes again | Use natively. |
-| Run code in an isolated environment | **Partial** — Daytona sandbox + Code Mode, provisioned per agent, persists across turns of a session; but no local fallback, no fixed 20 s budget, no `script_sha256` | **Falls short.** Own `SandboxExecutor` drives Daytona behind the `measure` tool (D-03, D-15). |
+| Run code in an isolated environment | **Partial** — Daytona sandbox + Code Mode, provisioned per agent, persists across turns of a session; but no local fallback, no fixed 20 s budget, no `script_sha256` | **Not used.** The sandbox was cut (spec Clarifications, Session 2026-08-29); own `measure()` behind the `measure` tool (D-03, D-15). |
 | Parallel investigation angles | **Yes** — built-in `create_sub_agent`, on by default, one level, emits `thread.created`/`thread.done` | Use natively (prompt, not code). |
 | Render the verdict card | **Yes** — OpenUI, on by default, `Card`/`Tag`/`Table`/bar chart/`Action(@ToAssistant)` | Use natively (prompt, not frontend code). |
 | Human decision surface for `escalate` | **Yes** — the pending approval itself is the surface; the turn stays `done` with a non-empty `required_actions` until a person resolves it | Use natively. |
@@ -77,34 +77,31 @@ against the registry on 2026-08-28.
 
 **Alternatives considered**: caret ranges — rejected outright by R9.
 
-### D-03 — Measurement executor: one script, two transports
+### D-03 — Measurement executor: one script, one local transport
 
 **Decision**: The measurement is a single Python 3 file, `measure.py`, using only the
 standard library. It takes the replica ledger path and the proposal's criteria string, and
-prints the measurement as emoji-keyed lines on stdout. It is executed:
-1. **Default** — inside the Daytona sandbox (upload ledger + script, run, read stdout).
-2. **Fallback** — locally via `python3` in a temporary working directory with no network,
-   when the sandbox is unreachable.
+prints the measurement as emoji-keyed lines on stdout. It is executed locally as
+`python3 -I` with a cleared environment in a fresh temporary directory, by one function,
+`measure()` — no interface, one transport. The attempt gets one 20-second budget (FR-010).
 
-Both paths run **byte-identical code** behind one TypeScript interface,
-`MeasurementExecutor`. Each attempt gets its own 20-second budget (FR-010).
+*Revised 2026-08-29*: the original decision ran the script in the Daytona sandbox by
+default with the local executor as fallback. The sandbox was cut (spec Clarifications,
+Session 2026-08-29): the demo runs on one machine, the replica is a seeded fixture, and a
+second transport was extra code and an external account for no measured figure the local
+one does not produce.
 
-**Rationale**: FR-004 requires the fallback to run "the identical measurement ... behind the
-same interface". Sharing the *script* rather than reimplementing the logic in TypeScript is
-the only version of that claim we can defend in a code review — there is one implementation
-of the counting, and it is the one that ran. Python because Code Mode is Python and the
-sandbox has it; stdlib-only because a `pip install` inside a sandbox on venue wifi is a risk
-we do not need.
+**Rationale**: one implementation of the counting, and it is the one that ran — a script
+rather than TypeScript so the same file can move to another transport later without a
+second implementation. Stdlib-only because a `pip install` on venue wifi is a risk we do
+not need.
 
 **Alternatives considered**:
-- *TypeScript measurement in the sandbox*: Code Mode is Python-shaped; fighting that buys
-  nothing.
-- *Reimplement the counting in TS for the fallback*: two implementations of the number the
-  entire product rests on. Rejected on Constitution II grounds — the fallback could disagree
-  with the sandbox and we would not know which one lied.
-- *SQLite + SQL `WHERE`*: attractive (the criteria is SQL-shaped), but it needs a native
-  module in the sandbox and it turns the criteria string into arbitrary SQL. Rejected; see
-  D-04.
+- *Daytona sandbox as the default transport*: the original decision. Cut — see above.
+- *Reimplement the counting in TS*: two implementations of the number the entire product
+  rests on. Rejected on Constitution II grounds.
+- *SQLite + SQL `WHERE`*: attractive (the criteria is SQL-shaped), but it turns the criteria
+  string into arbitrary SQL. Rejected; see D-04.
 
 ### D-04 — Criteria are a fixed predicate grammar, never evaluated code
 
@@ -146,11 +143,11 @@ spec's demo numbers exactly:
 
 **Rationale**: FR-006 (deterministic, no randomness anywhere), FR-007 (the corrected
 predicate must *arise from the data*, not from a script), SC-002 (three identical runs).
-JSON because the fallback executor, the sandbox, and a human reading the fixture all handle
+JSON because the executor and a human reading the fixture both handle
 it with zero setup.
 
 **Alternatives considered**:
-- *SQLite fixture*: native module in the sandbox; no benefit at 1,500 rows.
+- *SQLite fixture*: a native module for no benefit at 1,500 rows.
 - *Hardcode the totals in the verdict*: this is precisely the Constitution II violation the
   whole project exists to refuse (Risk R4).
 
@@ -189,8 +186,8 @@ infrastructure condition and escalates under rule 2b.
    - **2a** `observed === null` (the Evaluator never called `measure`), or `observed.criteria`/
      `observed.table` differ from the proposal's `criteria` and `tableFor(action)` (data-model §4) →
      **`Guidance`**: "measure the proposal's exact criteria on `<table>`".
-   - **2b** `observed` matches the proposal but `observed.result === null` — both executors
-     failed or exceeded their 20 s budget — **or** the case's wall clock
+   - **2b** `observed` matches the proposal but `observed.result === null` — the subprocess
+     failed or exceeded its 20 s budget — **or** the case's wall clock
      `CROSSEXAM_CASE_BUDGET_MS` expired, whatever was or was not called → **`escalate`**
      (FR-004, FR-010). Checked first within rule 2, before 2a.
 
@@ -475,13 +472,13 @@ Bench owns the pause — D-08, third alternative.
 **Decision**: A second MCP server, `packages/measure` (`@crossexam/measure`,
 streamable-HTTP, attached only to the Evaluator agent), exposes one tool, `measure`, with
 string arguments `criteria` and `table` (`charges` | `payouts`), annotated read-only and
-non-destructive so it needs no approval. It runs the resolution order of D-03 (sandbox
-first, local fallback, one fresh 20 s budget each). On success it returns the one `🧮` line
+non-destructive so it needs no approval. It runs the local executor of D-03 with
+one fresh 20 s budget. On success it returns the one `🧮` line
 exactly as `measure.py` printed it as its text result — what the Evaluator reads and cites —
 and the full `Measurement` as `structuredContent`: `{criteria, table, measured_count,
 measured_value_cents, duplicate_count, executor, duration_ms, script_sha256}`. On failure it
 returns `isError: true`, one reason line as text (`criteria did not parse`, `ledger malformed`,
-`both executors failed within 20 s`) and `{criteria, table, executor: null}` as
+`executor failed within 20 s`) and `{criteria, table, executor: null}` as
 `structuredContent`. `criteria` and `table` are always present, copied from the call's own
 arguments, so the Bench can tell a failed call on the proposal's criteria (D-06 rule 2b) from a
 call on other criteria (rule 2a). The Bench builds `observed` from `structuredContent` alone and
@@ -498,14 +495,11 @@ server. One tool, two string arguments, the same executor code (T015–T017) beh
 
 **Alternatives considered**: the Bench runs the executor and injects the triple into the
 charge sheet — the Evaluator reduced to reading numbers someone else produced. The
-Evaluator uses the harness's Code Mode sandbox directly — loses the local fallback, the
-fixed 20 s budgets and `script_sha256`.
+Evaluator uses the harness's Code Mode sandbox directly — loses the fixed 20 s budget and
+`script_sha256`, and needs the sandbox provider account the cut removed.
 
 ## C. Remaining assumptions
 
 Carried from the spec rather than resolved here; none blocks Phase 1.
 
 - **[ASSUMPTION]** The exact model per agent (D-10) is validated at the table on Saturday.
-- **[ASSUMPTION]** Daytona is reachable from the venue network. If it is not, D-03's local
-  executor carries the demo and the sandbox becomes the thing we describe rather than show.
-  Verified the night before per Risk R1, not on the day.

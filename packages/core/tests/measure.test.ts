@@ -4,32 +4,22 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { LocalExecutor } from '../src/measure/local.ts';
-import { MEASURE_SCRIPT_PATH } from '../src/measure/types.ts';
+import { MEASURE_SCRIPT_PATH, measure as run } from '../src/measure/index.ts';
 import type { LedgerTable } from '../src/model/entities.ts';
 
 /**
- * `LocalExecutor` against the committed replica — the real `python3`, the real
- * `measure.py`, the real fixture. Nothing is mocked, because the one thing this class
- * exists to guarantee is that a `Measurement` came out of executed code (Constitution II);
- * a stubbed subprocess would assert the opposite of the property under test.
+ * `measure()` against the committed replica — the real `python3`, the real `measure.py`,
+ * the real fixture. Nothing is mocked: the one thing this function exists to guarantee is
+ * that a `Measurement` came out of executed code (Constitution II).
  *
- * The expected figures are the cohort table of research D-05, the same numbers the demo
- * cross-examines.
+ * The expected figures are the cohort table of research D-05.
  */
 
 const LEDGER = resolve(import.meta.dirname, '../../../fixtures/replica.json');
 const TEMP_PREFIX = 'crossexam-measure-';
 
-const executor = new LocalExecutor();
-
-const measure = (
-  table: LedgerTable,
-  criteria: string,
-  ledgerPath = LEDGER,
-  timeoutMs = 20_000,
-): ReturnType<LocalExecutor['run']> =>
-  executor.run({ ledgerPath, table, criteria, signal: AbortSignal.timeout(timeoutMs) });
+const measure = (table: LedgerTable, criteria: string, ledgerPath = LEDGER, timeoutMs = 20_000) =>
+  run({ ledgerPath, table, criteria, signal: AbortSignal.timeout(timeoutMs) });
 
 /** How many working directories this executor has left behind in the system temp dir. */
 async function strayDirectories(): Promise<number> {
@@ -37,11 +27,7 @@ async function strayDirectories(): Promise<number> {
   return entries.filter((entry) => entry.startsWith(TEMP_PREFIX)).length;
 }
 
-describe('LocalExecutor', () => {
-  it('names its transport', () => {
-    expect(executor.kind).toBe('local');
-  });
-
+describe('measure', () => {
   it('measures the disputed cohort the demo turns on', async () => {
     const result = await measure('charges', 'status=disputed');
     expect(result).toMatchObject({

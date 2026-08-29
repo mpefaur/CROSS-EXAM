@@ -59,7 +59,7 @@ which do not yet exist.
 - [x] T002 Create the three package manifests — `packages/core/package.json`, `packages/mcp/package.json`, `apps/bench/package.json` — each with `"exports": "./src/index.ts"` (source export, no emit) and the exact pins of research [D-02](./research.md): `@truefoundry/trueforge` 0.1.4, `@truefoundry/trueforge-sdk` 0.1.3, `@modelcontextprotocol/sdk` 1.30.0, `zod` 4.5.2, `tsx` 4.23.12, `vitest` 4.1.11, `typescript` 5.9.3 — no caret ranges anywhere (Risk R9)
 - [x] T003 [P] Create `tsconfig.base.json` at the repo root and a `tsconfig.json` in each of the three packages; wire `pnpm build` to a workspace-wide `tsc --noEmit` so it fails on a real type error ([D-01](./research.md))
 - [x] T004 [P] Configure ESLint in `eslint.config.js` at the repo root and wire `pnpm lint`
-- [x] T005 [P] Create `.env.example` with the variable **names only** from [data-model.md](./data-model.md) §12 and dummy values — `TRUEFORGE_BASE_URL`, `TARGET_AGENT_NAME`, `EVALUATOR_AGENT_NAME`, `TARGET_MODEL`, `EVALUATOR_MODEL`, `CROSSEXAM_ESCALATION_THRESHOLD_USD`, `CROSSEXAM_MEASUREMENT_TIMEOUT_MS`, `DAYTONA_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` — and confirm `.env` is gitignored (FR-023, Constitution VI)
+- [x] T005 [P] Create `.env.example` with the variable **names only** from [data-model.md](./data-model.md) §12 and dummy values — `TRUEFORGE_BASE_URL`, `TARGET_AGENT_NAME`, `EVALUATOR_AGENT_NAME`, `TARGET_MODEL`, `EVALUATOR_MODEL`, `CROSSEXAM_ESCALATION_THRESHOLD_USD`, `CROSSEXAM_MEASUREMENT_TIMEOUT_MS`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` — and confirm `.env` is gitignored (FR-023, Constitution VI)
 
 **Checkpoint**: `pnpm install`, `pnpm build`, and `pnpm lint` all run and their output was read.
 
@@ -76,7 +76,7 @@ a change to it after either builder branches breaks both sides at once
 ([docs/emoji-grammar.md](../../docs/emoji-grammar.md) § Maintenance).
 
 **T013 (fixtures) is a narrower gate**: it blocks only the tasks that *open a ledger* —
-T015's real run, T016, T017a's real call, T021, T030. It does not block T014, T018, T020, T022–T028.
+T015's real run, T017a's real call, T021, T030. It does not block T014, T018, T020, T022–T028.
 
 **T008a (harness patch) gates every live turn** — T020's manual check and T022 onward. It
 does not gate T009–T019, and it needs only T001–T002.
@@ -114,9 +114,9 @@ and the action executes ([quickstart.md](./quickstart.md) Scenario 1).
 ### Measurement — the only thing that may produce a number (owner A)
 
 - [x] T014 [P] [US1] **(no dependency — start during Phase 1)** Write the one measurement script `packages/core/scripts/measure.py` — Python 3, **stdlib only** — implementing the predicate grammar of [data-model.md](./data-model.md) §5 (`term (' AND ' term)*`, no `OR`, no parens, no `eval`), counting matched rows, their value and the already-acted-on duplicates over the `charges` or `payouts` table, printing the one `🧮count | value | duplicates` line on stdout and nothing else, with exit codes `0`/`2`/`3` per [contracts/measurement-executor.md](./contracts/measurement-executor.md); it never writes, never opens a socket, and never reads a path it was not given (FR-004, FR-005, D-04)
-- [x] T015 [P] [US1] Define the `MeasurementExecutor` interface and implement `LocalExecutor` in `packages/core/src/measure/types.ts` and `packages/core/src/measure/local.ts` — runs the same `measure.py` under `python3` in a temporary directory with no network, decodes its stdout through the Phase 2 grammar, records `script_sha256` of the file that actually ran, and returns `Measurement | null` (FR-004)
-- [ ] T016 [US1] Implement `SandboxExecutor` in `packages/core/src/measure/sandbox.ts` — uploads `measure.py` and `fixtures/replica.json` into the Daytona sandbox once per run, executes, reads stdout, records the same `script_sha256`; returns `null` on any failure rather than throwing (FR-004, Risk R1)
-- [ ] T017 [US1] Implement the resolution order in `packages/core/src/measure/index.ts`: sandbox first with a fresh `AbortSignal` at `CROSSEXAM_MEASUREMENT_TIMEOUT_MS`, then local with its **own** fresh signal, then `null` — no third attempt, no retry loop
+- [x] T015 [P] [US1] Implement `measure()` in `packages/core/src/measure/index.ts` — no interface, one transport ([contracts/measurement-executor.md](./contracts/measurement-executor.md)): spawns `python3 -I measure.py` with `env: { PATH }`, `cwd` a fresh `mkdtemp` directory, the replica path as its only ledger argument and a fresh `AbortSignal` at `CROSSEXAM_MEASUREMENT_TIMEOUT_MS`; decodes stdout through the Phase 2 grammar, records `script_sha256` of the file that actually ran, returns `Measurement | null` — `null` on any failure or on the signal, no second attempt, no retry loop. Its unit test asserts the spawn options above (FR-004, FR-010)
+- [ ] ~~T016~~ **Cut 2026-08-29** (spec Clarifications, Session 2026-08-29 — the sandbox is not a transport). Was: Implement `SandboxExecutor` in `packages/core/src/measure/sandbox.ts` — uploads `measure.py` and `fixtures/replica.json` into the Daytona sandbox once per run, executes, reads stdout, records the same `script_sha256`; returns `null` on any failure rather than throwing (FR-004, Risk R1)
+- [ ] ~~T017~~ **Folded into T015 2026-08-29** — with one transport the resolution order is the function itself
 - [ ] T017a [US1] Create `packages/measure` (`@crossexam/measure`): manifest with `"exports": "./src/index.ts"`, the `typecheck`/`test` scripts and D-02 pins of the other packages, `@crossexam/core` as a workspace dependency, a `tsconfig.json` extending `tsconfig.base.json` and a `src/index.ts` so `pnpm build` and `pnpm lint` cover it from the first commit — a streamable-HTTP MCP server exposing the read-only `measure` tool of [research.md](./research.md) D-15: string arguments `criteria` and `table`, runs T017's resolution order, reads only `CROSSEXAM_REPLICA_PATH`, listens on `CROSSEXAM_MEASURE_SERVER_URL`, on success returns the one `🧮` line as text and the full `Measurement` — `{criteria, table, measured_count, measured_value_cents, duplicate_count, executor, duration_ms, script_sha256}` — as `structuredContent`; on failure `isError: true`, one reason line as text and `{criteria, table, executor: null}` as `structuredContent` ([contracts/measurement-executor.md](./contracts/measurement-executor.md) § The tool the Evaluator calls); non-destructive, so no approval. Verify with two real calls over HTTP against `fixtures/replica.json` — `status=disputed` on `charges`, and a criteria string that does not parse — and paste both results; confirm `pnpm build` lists the package (FR-004, FR-005, D-15)
 
 ### The verdict guardrail — escalates on data, guides the Evaluator on tool use (owner A)
@@ -161,10 +161,10 @@ Scenario 4 each return `⚖ escalate`, none emits `allow` or `deny`, and no atte
 > (User Story 2) is cut at the cutline. `decide()` already implements rules 1, 2b and 3 from T018; this
 > phase makes them reachable and observable.
 
-- [ ] T033 [US3] Add scenario selection in `apps/bench/src/scenarios.ts` and the `--scenario` flag in `apps/bench/src/demo.ts` for `unparseable`, `missing-declared`, `no-sandbox`, and `over-threshold`, each forcing exactly one failure mode without altering the production code path
+- [ ] T033 [US3] Add scenario selection in `apps/bench/src/scenarios.ts` and the `--scenario` flag in `apps/bench/src/demo.ts` for `unparseable`, `missing-declared`, `no-executor`, and `over-threshold`, each forcing exactly one failure mode without altering the production code path
 - [ ] T034 [US3] Confirm and, where needed, complete the escalate path in `apps/bench/src/sessions/resolve.ts`: the approval stays pending, the case is presented with its evidence, the action stays unexecuted, and there is no timeout that auto-approves — ever (FR-013, FR-014, spec § Edge Cases)
 - [ ] T035 [US3] Wire the `over-threshold` scenario in `apps/bench/src/scenarios.ts` to propose `issue_payout` against the `payouts` table, whose $418,220.00 measurement crosses `CROSSEXAM_ESCALATION_THRESHOLD_USD=250000` and returns `escalate` under rule 3 with its measured figures cited (FR-011, [D-07](./research.md))
-- [ ] T036 [US3] Run all four scenario flags of [quickstart.md](./quickstart.md) Scenario 4 and paste the output: four `⚖ escalate`, zero `allow`/`deny`, action unexecuted in each, and no measurement attempt over 20 s in the `no-sandbox` run (SC-004, SC-011)
+- [ ] T036 [US3] Run all four scenario flags of [quickstart.md](./quickstart.md) Scenario 4 and paste the output: four `⚖ escalate`, zero `allow`/`deny`, action unexecuted in each, and no measurement attempt over 20 s in the `no-executor` run (SC-004, SC-011)
 
 **Checkpoint**: The evidence rule is demonstrated, not just claimed.
 
@@ -247,7 +247,7 @@ earlier verdict with its cited evidence.
 ### Phase Dependencies
 
 - **Phase 1 (Setup)** — no dependencies, starts immediately
-- **Phase 2 (Foundational)** — depends on Phase 1; blocks every user story task **that touches the wire format or reads a ledger**. T009 (grammar) is the hard gate — the two-agent contract, and a change to it after either builder branches breaks both sides at once. T013 (fixtures) gates only the ledger readers (T015 run, T016, T021, T030). T014, T018 and T022 are gated by neither
+- **Phase 2 (Foundational)** — depends on Phase 1; blocks every user story task **that touches the wire format or reads a ledger**. T009 (grammar) is the hard gate — the two-agent contract, and a change to it after either builder branches breaks both sides at once. T013 (fixtures) gates only the ledger readers (T015 run, T021, T030). T014, T018 and T022 are gated by neither
 - **Phase 3 (US1, P1)** — depends on Phase 2. **The 14:30 PDT cutline.**
 - **Phase 4 (US3, P2)** — depends on Phase 3 (reuses `decide()` rules 1, 2b and 3 and the resolver)
 - **Phase 5 (US2, P2)** — depends on Phase 3 (extends the MCP handler and the charge sheet)
@@ -267,7 +267,7 @@ earlier verdict with its cited evidence.
 ### Within Each User Story
 
 - The case types (T007) precede the grammar (T009) — `decodeProposal` returns `DecodeResult<ProposedAction>` and the encoder takes a `Verdict` ([contracts/wire-grammar.md](./contracts/wire-grammar.md))
-- The measurement script (T014) precedes both executors; both executors precede the resolution order (T017), which precedes the `measure` server (T017a); T017a precedes the first live Evaluator turn (T029's run, T030). T014 itself depends on nothing and is written against [data-model.md](./data-model.md) §5, not against any TypeScript in this repo
+- The measurement script (T014) precedes `measure()` (T015), which precedes the `measure` server (T017a); T017a precedes the first live Evaluator turn (T029's run, T030). T014 itself depends on nothing and is written against [data-model.md](./data-model.md) §5, not against any TypeScript in this repo
 - `decide()` (T018) precedes its unit suite (T019) and the resolver (T029); the resolver also needs the `measure` tool-result event, so T017a
 - The harness patch (T008a) precedes every task that runs a live turn — T020's manual check, T022–T032
 - The correlation (T025) precedes the charge sheet (T026), which precedes the demo wiring (T030)

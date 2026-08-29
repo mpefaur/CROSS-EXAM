@@ -4,5 +4,4 @@ export * from './model/config.ts';
 export * from './grammar/index.ts';
 export * from './ledger/generate.ts';
 export * from './verdict/decide.ts';
-export * from './measure/types.ts';
-export * from './measure/local.ts';
+export * from './measure/index.ts';
