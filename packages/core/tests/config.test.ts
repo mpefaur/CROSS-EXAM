@@ -94,6 +94,12 @@ describe('loadConfig validation', () => {
   ])('rejects %s = %s', (name, value) => {
     expect(() => loadConfig(env({ [name]: value }))).toThrow(`${name} must be a positive integer`);
   });
+
+  it('rejects one name for both agents', () => {
+    const same = env({ TARGET_AGENT_NAME: 'one-agent', EVALUATOR_AGENT_NAME: 'one-agent' });
+    expect(() => loadConfig(same)).toThrow('TARGET_AGENT_NAME and EVALUATOR_AGENT_NAME must differ');
+    expect(() => loadConfig(env({ EVALUATOR_AGENT_NAME: 'ops-support-agent' }))).toThrow('must differ');
+  });
 });
 
 describe('loadConfig never echoes a credential, truncated or whole (FR-023, SC-010)', () => {
