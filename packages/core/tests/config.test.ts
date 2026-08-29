@@ -3,15 +3,36 @@ import { describe, expect, it } from 'vitest';
 
 import { loadConfig } from '../src/model/config.ts';
 
-/** The three required credentials, with values distinctive enough to grep an output for. */
-const SECRET = 'SECRET-VALUE-MUST-NOT-APPEAR';
+/**
+ * Credential values chosen to share no substring with anything the config legitimately
+ * prints — key names, URLs, model ids — so any fragment of one found in an output is a
+ * real leak and not a coincidence.
+ */
 const creds = {
-  DAYTONA_API_KEY: `daytona-${SECRET}`,
-  OPENAI_API_KEY: `openai-${SECRET}`,
-  ANTHROPIC_API_KEY: `anthropic-${SECRET}`,
+  DAYTONA_API_KEY: 'Xq7Zm2Kv9Rb4Tn6Wy8Ld3Hf5Jc1Pg0',
+  OPENAI_API_KEY: 'Vt3Nk8Rz5Qw1Ym7Bd4Gs9Lp2Hj6Fx0',
+  ANTHROPIC_API_KEY: 'Cw5Jd2Nq8Xr4Kt7Vb1Zm9Ph3Ls6Gy0',
 } satisfies NodeJS.ProcessEnv;
 
 const env = (extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({ ...creds, ...extra });
+
+/** The shortest run of credential characters an output may not contain. */
+const FRAGMENT_MIN = 4;
+
+/**
+ * FR-023 forbids a credential value in an output "not even truncated", so asserting on the
+ * whole value is too weak: a redaction that kept a prefix or a suffix would pass it. Assert
+ * instead on every fragment of `FRAGMENT_MIN` characters or more, taken from both ends —
+ * the two shapes a truncation actually takes.
+ */
+function expectNoCredentialFragment(output: string): void {
+  for (const value of Object.values(creds)) {
+    for (let n = FRAGMENT_MIN; n <= value.length; n += 1) {
+      expect(output).not.toContain(value.slice(0, n));
+      expect(output).not.toContain(value.slice(value.length - n));
+    }
+  }
+}
 
 describe('loadConfig defaults (data-model §12)', () => {
   it('applies every documented default when only the credentials are set', () => {
@@ -75,16 +96,23 @@ describe('loadConfig validation', () => {
   });
 });
 
-describe('loadConfig never echoes a credential (FR-023, SC-010)', () => {
-  it('redacts the credentials under JSON.stringify and util.inspect', () => {
+describe('loadConfig never echoes a credential, truncated or whole (FR-023, SC-010)', () => {
+  it('leaves no credential fragment in JSON.stringify or util.inspect', () => {
     const c = loadConfig(env());
-    expect(JSON.stringify(c)).not.toContain(SECRET);
-    expect(inspect(c, { depth: null })).not.toContain(SECRET);
+    expectNoCredentialFragment(JSON.stringify(c));
+    expectNoCredentialFragment(inspect(c, { depth: null }));
     expect(JSON.parse(JSON.stringify(c.credentials))).toEqual({
       DAYTONA_API_KEY: '[redacted]',
       OPENAI_API_KEY: '[redacted]',
       ANTHROPIC_API_KEY: '[redacted]',
     });
+  });
+
+  it('catches a truncated leak that a whole-value assertion would let through', () => {
+    const truncated = `token=${creds.OPENAI_API_KEY.slice(0, 8)}...`;
+    // The naive check passes — this is exactly the hole the fragment check closes.
+    expect(truncated).not.toContain(creds.OPENAI_API_KEY);
+    expect(() => expectNoCredentialFragment(truncated)).toThrow();
   });
 
   it('still hands the real value to the code that needs it', () => {
@@ -103,12 +131,13 @@ describe('loadConfig never echoes a credential (FR-023, SC-010)', () => {
       }
       throw new Error('expected loadConfig to throw');
     };
-    const bad = thrown(() => loadConfig(env({ CROSSEXAM_CASE_BUDGET_MS: `oops-${SECRET}` })));
+    // A credential pasted into the wrong variable must not come back in the message.
+    const bad = thrown(() => loadConfig(env({ CROSSEXAM_CASE_BUDGET_MS: creds.OPENAI_API_KEY })));
     expect(bad).toContain('CROSSEXAM_CASE_BUDGET_MS');
-    expect(bad).not.toContain(SECRET);
+    expectNoCredentialFragment(bad);
 
-    const missing = thrown(() => loadConfig({ OPENAI_API_KEY: `openai-${SECRET}` }));
+    const missing = thrown(() => loadConfig({ OPENAI_API_KEY: creds.OPENAI_API_KEY }));
     expect(missing).toContain('DAYTONA_API_KEY');
-    expect(missing).not.toContain(SECRET);
+    expectNoCredentialFragment(missing);
   });
 });
