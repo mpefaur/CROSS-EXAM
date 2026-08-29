@@ -164,7 +164,9 @@ function measurementOf(content: string): Measurement | null {
   if (!isInteger(fields.measured_value_cents)) return null;
   if (!isInteger(fields.duplicate_count)) return null;
   if (!isInteger(fields.duration_ms)) return null;
-  if (executor !== 'sandbox' && executor !== 'local') return null;
+  // One transport since the sandbox was cut (spec Clarifications 2026-08-29), so `'local'`
+  // is the only executor a measurement can name.
+  if (executor !== 'local') return null;
   if (typeof script_sha256 !== 'string') return null;
   if (typeof criteria !== 'string') return null;
   if (table !== 'charges' && table !== 'payouts') return null;
