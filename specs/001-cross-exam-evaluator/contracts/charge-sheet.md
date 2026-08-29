@@ -35,12 +35,13 @@ Sent as the Evaluator turn's message: a JSON object matching `ChargeSheet`
 ```
 
 When the proposal did not parse, `proposal` is `{ "parse_error": "<reason>" }` instead, and
-the Evaluator returns `escalate` under rule 1 without attempting a measurement.
+the Bench escalates under rule 1 before any Evaluator turn; the Evaluator is not consulted.
 
 **Orchestrator obligations**
 - Correlate `tool.approval_required` (which carries only `{id, source_event_id}`) with the
-  preceding `model.message` to recover the tool name and arguments (FR-002; harness check,
-  research §A).
+  preceding `model.message` to recover the tool name and the text content; decode the proposal
+  from the content, never from the synthesised `tool_calls` arguments (FR-002, D-14; harness
+  check, research §A).
 - One turn in flight per session, ever (FR-003, Risk R5).
 - Never construct a `Measurement`. Its only sources are the two executors.
 
@@ -59,15 +60,28 @@ and the processor does not reverse them. Narrow the criteria or justify the amou
 ```
 
 **Evaluator obligations**
-- `⚖allow` and `⚖deny` MUST carry `🧮`, `💰`, `♻` (FR-009, Constitution II).
-- `⚖escalate` carries `📝` and MAY carry the measured triple (rule 3 — threshold exceeded —
-  has a measurement; rules 1 and 2 do not).
+- MUST call `measure` (`🧾measure` / `🔍` / `🗂`, research D-15) with the proposal's **exact**
+  `🔍` and `tableFor(action)` before writing `⚖allow` or `⚖deny`; the Bench reads the last
+  such result as `observed`, and a verdict without one — or one measured on other criteria —
+  is answered with guidance by rule 2a of research D-06, whatever the Evaluator wrote
+  (FR-004); only a measurement that *fails* on the right criteria escalates (rule 2b).
+- `⚖allow` and `⚖deny` MUST carry `🧮`, `💰`, `♻` equal to what `measure` returned (FR-009,
+  Constitution II); a difference comes back as guidance under rule 4, and the verdict is re-issued.
+- An `escalate` is the system's, never the Evaluator's (a `⚖escalate` from it is rule-4
+  guidance); it carries `📝` and MAY carry the measured triple (rule 3 — threshold exceeded —
+  has a measurement; rules 1 and 2b have none for this proposal; an escalation after exhausted
+  guidance carries whatever `observed.result` was — rule 4/5 the proposal's measurement, rule 2a
+  possibly one taken on other criteria, or nothing).
 - The `📝` reason on a `deny` MUST contain the measured figures, because that text is what
   the harness delivers back to the acting agent as `deny.reason` (FR-012).
 
 ## Resolution
 
-The orchestrator maps the verdict onto the pending approval:
+The orchestrator first runs `decide(proposal, evaluatorVerdict, observed, state, config)` (research
+D-06). Its `Outcome` is either a `Guidance` — the orchestrator sends the message as the
+Evaluator's next turn and runs `decide()` on the re-issued verdict, at most
+`CROSSEXAM_EVALUATOR_RETRIES` times per held action, after which the next failure is an
+`escalate` — or a final `Verdict`, mapped onto the pending approval:
 
 | Verdict | Harness action | Result |
 | --- | --- | --- |

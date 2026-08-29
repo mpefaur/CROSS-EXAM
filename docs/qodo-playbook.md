@@ -87,7 +87,7 @@ A challenge that is just "I disagree" wastes the turn. A good one names four thi
 > (`contracts/measurement-executor.md`) has both executors return `Measurement | null` and
 > never throw, and `local.ts:31` swallows its own errors. **Is there a path where `run()`
 > throws that I am not seeing?** If not, catching here would let a failed measurement reach
-> rule 4 as a `deny`, which Constitution II forbids — no measurement must produce `escalate`.
+> rule 6 as a `deny`, which Constitution II forbids — no measurement must produce `escalate`.
 
 Then honor the answer:
 
@@ -102,7 +102,7 @@ Never leave the exchange hanging. An open thread at merge time is an unresolved 
 **Challenge that wins.** Qodo: "wrap the sandbox call in try/catch and default to the previous
 verdict on failure." → Challenge citing Constitution II: a fallback verdict without cited
 execution numbers is exactly what this project exists to refuse; the correct default is
-`escalate`, already rule 2. Dismiss as **Rejected**, quote the principle.
+`escalate`, already rule 2b. Dismiss as **Rejected**, quote the principle.
 
 **Challenge that loses.** Qodo: "`CROSSEXAM_ESCALATION_THRESHOLD_USD` is compared against a
 cents value." → Ask for the two lines it means, run the verdict suite at $96,310, watch it

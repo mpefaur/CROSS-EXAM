@@ -14,11 +14,12 @@ detail lives in `tasks.md` and the code. Every command below is one you actually
 | Requirement | Check | Why |
 | --- | --- | --- |
 | Node ≥ 22.14 | `node -v` | harness requirement |
-| pnpm 11.4.0 | `pnpm -v` | `AGENTS.md §1` |
+| pnpm 11.4.0 | `pnpm -v` | research D-01, T001 |
 | Python 3 | `python3 --version` | the measurement script ([contract](./contracts/measurement-executor.md)) |
-| TrueForge on `:8790` | `npx @truefoundry/trueforge@0.1.4` | local mode, SQLite |
+| TrueForge on `:8790` | `pnpm install && pnpm exec trueforge` | local mode, SQLite. From the workspace, never `npx` — the D-14 patch applies at install |
 | Daytona key with **Sandboxes + Snapshots(create)** | provider configured in the harness UI | Risk R1 — without Snapshots the provider fails to configure even with a valid key |
 | Model provider key | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | both agents |
+| `CROSSEXAM_GRAMMAR_REGISTRY` exported **in the harness process's environment** before `pnpm exec trueforge` | `echo $CROSSEXAM_GRAMMAR_REGISTRY` | research D-14 — unset means a stock harness and no grammar tool call; the adapter logs `inert` and `pnpm demo` refuses to start |
 
 ```bash
 cp .env.example .env    # then fill in real values; .env is gitignored
@@ -33,7 +34,7 @@ Never paste a key into a file that is tracked, and never echo one to check it (F
 
 | Command | What it does |
 | --- | --- |
-| `pnpm demo` | one full seeded run of the User Story 1 loop |
+| `pnpm demo` | one full seeded run of the User Story 1 loop; starts both MCP servers itself (`packages/mcp` on `CROSSEXAM_ACTION_SERVER_URL`, `packages/measure` on `CROSSEXAM_MEASURE_SERVER_URL`) |
 | `pnpm test` | the seeded scenario three times (SC-002) plus the three unit suites |
 | `pnpm lint` | eslint over the workspace |
 | `pnpm build` | `tsc --noEmit` typecheck across all packages |
@@ -58,14 +59,14 @@ the verdict:
   guardrails: ceiling PASS · frequency PASS · eligibility PASS · confidence 0.94 PASS
 ▸ measuring (sandbox) …
   🧮1204  💰96310.00  ♻611          [executor=sandbox  1.4s]
-▸ verdict  ⚖deny   (rule 4)
+▸ verdict  ⚖deny   (rule 6)
   📝You declared 7 disputes for $840.00. Measured: 1204 charges, $96,310.00, of which
      611 already carry a settled refund …
 ▸ round 2  target re-proposes
   🧾bulk_refund  🔍status=disputed AND refunded=false AND age_days<=30  🔢7  💵840.00
 ▸ measuring (sandbox) …
   🧮7  💰840.00  ♻0                 [executor=sandbox  1.1s]
-▸ verdict  ⚖allow  (rule 5)
+▸ verdict  ⚖allow  (rule 6)
 ▸ executed against production ledger — 7 refunds, $840.00
 ```
 
@@ -107,7 +108,7 @@ Force each failure mode and confirm the verdict never guesses.
 ```bash
 pnpm demo -- --scenario unparseable      # proposal violates the grammar   → rule 1
 pnpm demo -- --scenario missing-declared # 🔢 absent                       → rule 1
-pnpm demo -- --scenario no-sandbox       # both executors unavailable      → rule 2
+pnpm demo -- --scenario no-sandbox       # both executors unavailable      → rule 2b
 pnpm demo -- --scenario over-threshold   # issue_payout, $418,220.00       → rule 3
 ```
 

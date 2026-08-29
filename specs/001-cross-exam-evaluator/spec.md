@@ -81,7 +81,6 @@ complete value of the product on its own.
 
 
 ### User Story 2 - The guardrails that pass while the damage goes through (Priority: P2)
-***
 Before the Evaluator gets involved, the acting agent runs the protections a real
 money-moving agent ships with today: a per-refund dollar ceiling, a per-customer
 frequency cap, an eligibility-policy check, and its own confidence score. All four pass —
@@ -262,14 +261,25 @@ earlier verdict is retrievable.
 - **FR-008**: A verdict MUST be exactly one of `allow`, `deny`, or `escalate`.
 - **FR-009**: `allow` and `deny` MUST each cite numbers produced by the measurement.
   A verdict path MUST NOT emit `allow` or `deny` from reasoning alone.
-- **FR-010**: When no measurement was produced — for any reason, including infrastructure
-  failure — the verdict MUST be `escalate`. A measurement attempt that has not returned
+- **FR-010**: When a measurement was attempted on the proposal's exact criteria and none was
+  produced — for any reason, including infrastructure failure — or the case's wall-clock
+  budget runs out before one is produced, the verdict MUST be `escalate`. A measurement attempt that has not returned
   within 20 seconds MUST be abandoned and counts as producing no measurement; the fallback
   executor of FR-004 is then attempted under the same 20-second limit.
 - **FR-011**: When the measured value at stake exceeds the configured escalation
   threshold, the verdict MUST be `escalate` even though the measurement succeeded.
-  Together with FR-010 these are the only two escalation triggers; there is no separate
-  "inconclusive measurement" branch.
+  Escalation is a **data** condition: no measurable proposal (FR-025), no measurement
+  produced (FR-010), or a value over the threshold (this requirement) — these are the only
+  three *data* triggers; there is no separate "inconclusive measurement" branch. The one
+  non-data trigger is exhausting the configured guidance retries below. A
+  verdict the Evaluator writes incorrectly — malformed, written without measuring at all,
+  measured on other criteria, citing figures it did not measure, or approving what its
+  measurement contradicts — is a
+  tool-usage mistake, not a data condition: the system MUST return it to the Evaluator with
+  the measured figures as guidance and read the re-issued verdict, and MUST NOT execute on
+  it. The Evaluator does not decide escalation: a `⚖escalate` it writes is a malformed verdict
+  and is returned as guidance like any other. Guidance is given a configured number of times per held action; the
+  next incorrect verdict means no valid verdict can be obtained and the action escalates.
 - **FR-012**: A `deny` verdict MUST carry a reason containing the measured figures, and
   that reason MUST be delivered to the acting agent.
 - **FR-013**: An `escalate` verdict MUST present the case, with its evidence, to a human
@@ -314,8 +324,8 @@ earlier verdict is retrievable.
 
 **Proposal and verdict encoding**
 
-- **FR-024**: The proposal the acting agent emits, and the denial reason returned to it,
-  MUST use a flat, emoji-keyed grammar — each field introduced by a unicode emoji that
+- **FR-024**: The proposal the acting agent emits, and the `📝` reason text the Evaluator
+  produces for a denial, MUST use a flat, emoji-keyed grammar — each field introduced by a unicode emoji that
   names it, one field per line, no nested structures, and no JSON-escaped payload inside
   any field. The selection criteria, the declared count, and the declared value each carry
   their own emoji key. Emoji keys are chosen because they are compact and visually

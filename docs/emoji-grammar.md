@@ -34,6 +34,10 @@ One line per field. No nesting. No JSON inside a field.
   is needed, that is a sign the field is modeled wrong.
 - Line order is free. The parser indexes by key, not by position.
 - An unknown key, or a line with no key, means the proposal does not parse (FR-025).
+- A message that carries a `🧾` line **is a tool call**. The patched harness
+  ([research.md](../specs/001-cross-exam-evaluator/research.md) D-14) invokes the tool the
+  value names; the other proposal lines are its arguments. No JSON or XML wrapper exists —
+  that is the point of the grammar.
 
 ## Key registry
 
@@ -42,16 +46,29 @@ One line per field. No nesting. No JSON inside a field.
 | Emoji | Codepoint | Field            | Type    | Example                          |
 | ----- | --------- | ---------------- | ------- | -------------------------------- |
 | 🧾    | `U+1F9FE` | `action`         | string  | `🧾bulk_refund`                  |
-| 🔍    | `U+1F50D` | `criteria`       | string  | `🔍status=disputed AND days<=30` |
+| 🔍    | `U+1F50D` | `criteria`       | string  | `🔍status=disputed AND age_days<=30` |
 | 🔢    | `U+1F522` | `declared_count` | integer | `🔢7`                            |
 | 💵    | `U+1F4B5` | `declared_value` | decimal | `💵840.00`                       |
 
-All four are required. If end without all 4 then harness should send reminder
+All four are required. A missing key is a parse failure and the Bench escalates (FR-002,
+FR-025). The harness validates nothing (research D-14).
+
+### Measurement request — Evaluator → `measure` tool
+
+| Emoji | Codepoint | Field      | Type                    | Example              |
+| ----- | --------- | ---------- | ----------------------- | -------------------- |
+| 🧾    | `U+1F9FE` | `action`   | `measure`               | `🧾measure`          |
+| 🔍    | `U+1F50D` | `criteria` | string                  | `🔍status=disputed`  |
+| 🗂     | `U+1F5C2` | `table`    | `charges` \| `payouts` | `🗂charges`          |
+
+Same keys as the proposal where the field is the same; `🗂` is the one addition
+(research D-15).
+
 ### Verdict and measurement — Evaluator → acting agent
 
 | Emoji | Codepoint | Field             | Type                            | Example                      |
 | ----- | --------- | ----------------- | ------------------------------- | ---------------------------- |
-| ⚖     | `U+2696`  | `verdict`         | `allow` \| `deny` \| `escalate` | `⚖deny`                      |
+| ⚖     | `U+2696`  | `verdict`         | `allow` \| `deny` (Evaluator) · `escalate` (system only) | `⚖deny`                      |
 | 🧮    | `U+1F9EE` | `measured_count`  | integer                         | `🧮1204`                     |
 | 💰    | `U+1F4B0` | `measured_value`  | decimal                         | `💰96310.00`                 |
 | ♻     | `U+267B`  | `duplicate_count` | integer                         | `♻611`                       |
@@ -59,6 +76,10 @@ All four are required. If end without all 4 then harness should send reminder
 
 `⚖allow` and `⚖deny` require `🧮`, `💰`, and `♻` in the same message — a verdict without
 measured figures is a Constitution II violation, not an incomplete message.
+
+`⚖escalate` is never written by the Evaluator — escalation is the system's decision
+(research D-06); `decodeVerdict` rejects it. It appears only in the system's own rendering
+of a verdict.
 
 ## Rules for choosing a key
 
@@ -68,7 +89,8 @@ When adding a new key, in this order:
    They are several tokens and get mangled on re-serialization.
 2. **No variation selector `U+FE0F`.** This is why the registry uses `⚖` (`U+2696`) and
    not `⚖️` (`U+2696 U+FE0F`), and `♻` and not `♻️`. It costs an extra token and survives
-   round-trips poorly.
+   round-trips poorly. Models add it anyway, so every decoder and the D-14 adapter drop one
+   leading `U+FE0F` from a value ([wire-grammar.md](../specs/001-cross-exam-evaluator/contracts/wire-grammar.md) obligation 1).
 3. **Distinguishable from the rest of the table** at a glance. `💵` declared vs `💰`
    measured is the closest pair we have; it is accepted because they never travel in the
    same message.
@@ -76,6 +98,18 @@ When adding a new key, in this order:
    The saving is this format's whole reason to exist; it is not assumed.
 5. **Never reuse** an emoji already listed for another field, not even in the other
    direction.
+
+## Registry as configuration
+
+The harness adapter (research D-14) reads this table from `CROSSEXAM_GRAMMAR_REGISTRY`,
+not from code. The value mirrors the tables above plus two reserved entries:
+
+```json
+{"$tools":["bulk_refund","issue_payout","close_account","measure"],
+ "🧾":"$tool","🔍":"criteria","🔢":"declared_count","💵":"declared_value","🗂":"table"}
+```
+
+A key added here is added there in the same PR (§ Maintenance).
 
 ## Invariant
 

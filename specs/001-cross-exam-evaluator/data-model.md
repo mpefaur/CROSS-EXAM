@@ -5,7 +5,7 @@
 
 Entities from `spec.md` § Key Entities, made concrete. All types are TypeScript as
 implemented in `packages/core/src/model/`. Monetary values are **integer cents**
-internally and formatted to `#.00` dollars only at the wire and display edges — no float
+internally and formatted to `#.##` dollars only at the wire and display edges — no float
 arithmetic anywhere on the money path (FR-006 determinism, SC-002).
 
 ---
@@ -74,10 +74,10 @@ What the acting agent emits, decoded from the emoji grammar.
 
 | Field | Emoji key | Type | Required | Notes |
 | --- | --- | --- | --- | --- |
-| `action` | `🧾` | `'bulk_refund' \| 'issue_payout' \| 'close_account'` | yes | must be a known irreversible tool |
+| `action` | `🧾` | `'bulk_refund' \| 'issue_payout' \| 'close_account'` | yes | must be a known irreversible tool. `tableFor(action)`: `bulk_refund` → `charges`, `issue_payout` → `payouts`, `close_account` → `charges` (the customer's charges are what a closure strands). D-06 rule 2 compares the `measure` result's echoed `table` against it |
 | `criteria` | `🔍` | `string` | yes | a Criteria expression (§5) |
 | `declared_count` | `🔢` | `integer` | yes | missing ⇒ `escalate` (FR-002) |
-| `declared_value_cents` | `💵` | `integer` | yes | parsed from `#.00` dollars; missing ⇒ `escalate` |
+| `declared_value_cents` | `💵` | `integer` | yes | parsed from `#.##` dollars; missing ⇒ `escalate` |
 
 **Validation**
 - All four keys present exactly once. A repeated key is a parse failure.
@@ -105,7 +105,9 @@ status=disputed AND refunded=false AND age_days<=30
 
 ## 6. GuardrailReport (P2)
 
-The four conventional controls the acting agent runs *before* proposing (FR-017/FR-018).
+The four conventional controls, computed by the Bench from the decoded proposal at
+charge-sheet assembly (FR-017/FR-018, research D-13). Not in any tool handler, not in the
+harness patch.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -130,36 +132,71 @@ artifact both builders must agree on before typing. Contract:
 | `approval_id` | `string` | the pending `tool.approval_required` this resolves |
 | `round` | `1 \| 2` | one round of cross-examination only (spec, Assumptions) |
 | `proposal` | `ProposedAction \| { parse_error: string }` | correlated from `tool.approval_required` → preceding `model.message` |
-| `guardrails` | `GuardrailReport` | as reported by the acting agent |
+| `guardrails` | `GuardrailReport` | computed by the Bench at charge-sheet assembly (D-13) |
 | `transcript_excerpt` | `string` | the business request that led to the proposal |
 | `replica` | `{ seed: string, as_of: string, path: string }` | which replica the measurement must run against |
 
-## 8. Measurement
+## 8. MeasuredTriple and Measurement
 
-The numeric result of executing the criteria against the replica. **Produced only by
-executed code** (Constitution II) — there is no code path that constructs one from
-reasoning.
+`MeasuredTriple` is what `measure.py` prints and `decodeMeasurement` returns — the three
+numbers, nothing else. `Measurement` is a `MeasuredTriple` plus the transport metadata the
+executor adds. **Produced only by executed code** (Constitution II) — there is no code path
+that constructs one from reasoning.
+
+| Field | Type | In | Notes |
+| --- | --- | --- | --- |
+| `measured_count` | `integer` | triple | rows the action would affect (FR-005) |
+| `measured_value_cents` | `integer` | triple | their total value (FR-005) |
+| `duplicate_count` | `integer` | triple | of those, already irreversibly acted on (FR-005) |
+| `executor` | `'sandbox' \| 'local'` | Measurement | which transport produced it (FR-004) |
+| `duration_ms` | `integer` | Measurement | ≤ 20,000 per attempt (FR-010) |
+| `script_sha256` | `string` | Measurement | digest of the `measure.py` that ran — the same file on both transports |
+| `criteria` | `string` | Measurement | copied from the `measure` call's argument — the same value as `MeasureAttempt.criteria` below |
+| `table` | `'charges' \| 'payouts'` | Measurement | likewise; D-06 rule 2a compares the attempt's `table` to `tableFor(action)` (§4) |
+
+Absence is a first-class state: `Measurement | null`. `null` means no measurement was
+produced, for any reason.
+
+**`MeasureAttempt`** — one `measure` call as the Bench sees it, built from the tool result's
+`structuredContent` ([contracts/measurement-executor.md](./contracts/measurement-executor.md)):
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `measured_count` | `integer` | rows the action would affect (FR-005) |
-| `measured_value_cents` | `integer` | their total value (FR-005) |
-| `duplicate_count` | `integer` | of those, already irreversibly acted on (FR-005) |
-| `executor` | `'sandbox' \| 'local'` | which transport produced it (FR-004) |
-| `duration_ms` | `integer` | ≤ 20,000 per attempt (FR-010) |
-| `script_sha256` | `string` | digest of the `measure.py` that ran — the same file on both transports |
+| `criteria` | `string` | what the call asked for; present on success and on failure |
+| `table` | `'charges' \| 'payouts'` | likewise |
+| `result` | `Measurement \| null` | `null` when the call produced no measurement — both executors failed, or the criteria did not parse |
 
-Absence is a first-class state: `Measurement | null`. `null` means no measurement was
-produced, for any reason, and forces `escalate` (FR-010).
+`decide()` receives `observed: MeasureAttempt | null` — the **last** `measure` call of the
+Evaluator's turn, `null` when the turn made none (research D-06). A `null` `observed`, or a
+`criteria`/`table` that differ from the proposal's, is guidance (rule 2a); a matching attempt
+with `result === null` escalates (rule 2b, FR-010). On success `result.criteria`/`result.table`
+repeat the attempt's own — the server writes both from the one argument it received.
 
-## 9. Verdict
+## 9. EvaluatorVerdict, Outcome, Verdict
+
+**`EvaluatorVerdict`** — what `decodeVerdict` returns from the Evaluator's grammar message.
+Nothing in it is produced by code.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `verdict` | `'allow' \| 'deny'` | the `⚖` line. `escalate` is not in the Evaluator's grammar — escalation is the system's (research D-06: rules 1/2b/3, or exhausted retries); a `⚖escalate` from the Evaluator is a parse failure and gets rule-4 guidance |
+| `reason` | `string \| null` | the `📝` line |
+| `cited` | `MeasuredTriple \| null` | the `🧮`/`💰`/`♻` lines; required on `allow`/`deny` (registry) |
+
+**`Outcome`** — what `decide()` returns: `Verdict | Guidance`. A `Guidance` is
+`{ rule: '2a' | '4' | '5', message: string }` — the text the Bench sends the Evaluator as its next
+turn; the re-issued verdict goes through `decide()` again (research D-06). At most
+`CROSSEXAM_EVALUATOR_RETRIES` guidances per held action; the next failure is a `Verdict`
+`escalate` carrying that rule.
+
+**`Verdict`** — the final, system-owned result.
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `verdict` | `'allow' \| 'deny' \| 'escalate'` | exactly one (FR-008) |
-| `reason` | `string` | delivered to the acting agent on `deny` (FR-012) |
-| `evidence` | `Measurement \| null` | `null` only when `verdict === 'escalate'` |
-| `rule` | `1 \| 2 \| 3 \| 4 \| 5` | which rule of research D-06 fired; makes the verdict auditable |
+| `reason` | `string` | the Evaluator's `📝`, or the escalation reason from rule 1/2b/3, or the last guidance message when 2a/4/5 exhausted the retries |
+| `evidence` | `Measurement \| null` | `observed.result`; `null` only when `verdict === 'escalate'` |
+| `rule` | `'1' \| '2a' \| '2b' \| '3' \| '4' \| '5' \| '6'` | which rule of research D-06 produced it; `'6'` = the Evaluator's verdict stood; `'2a'`, `'4'`, `'5'` appear only when the guidance retries are exhausted |
 
 **Invariant, enforced in one place and unit-tested** (Constitution II, FR-009):
 
@@ -182,10 +219,13 @@ One held action moves through exactly these states. No other transition exists.
       │                                                    ▼
       └──────────────────────────────────────────────►  DECIDED
                                                            │
-                 rule 4 ┌─────────────────┬─────────────── ┤ rule 5
+                 rule 6 ┌─────────────────┬─────────────── ┤ rule 6
                         ▼                 ▼                ▼
                      DENIED           ESCALATED         ALLOWED
-                        │             (rules 1,2,3)         │
+                        │   (rules 1,2b,3; 2a/4/5 once      │
+                        │    the retries are spent)         │
+                        │   rules 2a/4/5: guidance to the   │
+                        │   Evaluator, back to DECIDED      │
        round 1 only ────┘                  │                ▼
        agent re-proposes                   │            EXECUTED
        → new HeldAction, round 2           │            (production ledger)
@@ -194,7 +234,9 @@ One held action moves through exactly these states. No other transition exists.
                                    (no timeout, ever)
 ```
 
-- `MEASURING` with no measurement produced → `ESCALATED` via rule 2, never `DENIED`.
+- `MEASURING` with no measurement produced → `ESCALATED` via rule 2b, never `DENIED`. A
+  tool-usage mistake by the Evaluator (rules 2a, 4, 5) loops through a guidance turn and
+  stays in `DECIDED` until `CROSSEXAM_EVALUATOR_RETRIES` guidances are spent, then `ESCALATED`.
 - `DENIED` at round 2 is terminal: the run ends with the action unexecuted and reports the
   denial as final (spec, Edge Cases).
 - `ESCALATED` is terminal until a human answers. There is **no** auto-approving timeout.
@@ -218,7 +260,8 @@ from a later session (FR-021).
 ## 12. Configuration
 
 All from the environment, no value in the repository (FR-023, Constitution VI). Names only
-in `.env.example`.
+in `.env.example` — with one stated, non-secret exception: `CROSSEXAM_GRAMMAR_REGISTRY` carries
+the full registry there, because it is configuration the harness needs and not a credential.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -229,6 +272,12 @@ in `.env.example`.
 | `EVALUATOR_MODEL` | `anthropic/claude-sonnet-4-6` | research D-10 |
 | `CROSSEXAM_ESCALATION_THRESHOLD_USD` | `250000` | research D-07 — the band is `$96,310 < t < $418,220` |
 | `CROSSEXAM_MEASUREMENT_TIMEOUT_MS` | `20000` | FR-010, SC-011 |
+| `CROSSEXAM_EVALUATOR_RETRIES` | `3` | research D-06/D-09 — guidance rounds per held action before the next tool-usage failure escalates |
+| `CROSSEXAM_CASE_BUDGET_MS` | `600000` | research D-09 — wall-clock bound on one case across all Evaluator turns and guidance rounds; expiry → `escalate` (D-06 rule 2b) |
+| `CROSSEXAM_ACTION_SERVER_URL` | `http://localhost:8801` | the action server, `packages/mcp` (registered on the target agent) |
+| `CROSSEXAM_MEASURE_SERVER_URL` | `http://localhost:8802` | the `measure` server, `packages/measure` (registered on the Evaluator; D-15) |
+| `CROSSEXAM_REPLICA_PATH` | `fixtures/replica.json` | the only ledger the `measure` server opens. Server ports sit at `:880x`, clear of TrueForge's `:8790` (local) and `:8791` (hosted) |
+| `CROSSEXAM_GRAMMAR_REGISTRY` | — (required for the demo; unset → adapter inert) | research D-14 — JSON: emoji → field name, `$tool` names the tool, `$tools` lists covered tool names. Mirrors [docs/emoji-grammar.md](../../docs/emoji-grammar.md) |
 | `DAYTONA_API_KEY` | — (required) | needs Sandboxes **and** Snapshots(create) — Risk R1 |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | — (required) | model providers |
 

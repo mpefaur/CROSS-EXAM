@@ -47,4 +47,4 @@
   proposal grammar in the spec rather than in `plan.md`. This is a recorded deviation from
   Constitution VII, not an oversight; its justification and the rejected alternative are in
   **Assumptions** and must be carried into `plan.md` under Complexity Tracking.
-- Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`.
+- The two unchecked items above are the accepted deviation recorded in `plan.md` Complexity Tracking, not open work.
