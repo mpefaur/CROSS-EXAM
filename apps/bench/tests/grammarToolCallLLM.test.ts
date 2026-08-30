@@ -204,10 +204,34 @@ describe('GrammarToolCallLLM', () => {
       chunks.push(r.value);
       r = await gen.next();
     }
-    expect(chunks).toHaveLength(2);
+    expect(chunks).toHaveLength(3);
     expect(r.value.finish_reason).toBe('tool_calls');
-    expect(r.value.output.tool_calls?.[0]?.function.name).toBe('bulk_refund');
+    const call = r.value.output.tool_calls?.[0];
+    expect(call?.function.name).toBe('bulk_refund');
     expect(r.value.output.content).toBe('🧾status=disputed | 7 | 840.00');
+    // The SSE deltas come from the chunks, so the synthesized call goes out as the last one too.
+    const last = chunks[2] as { choices: { delta: { tool_calls: unknown[] }; finish_reason: string }[] };
+    expect(last.choices[0]?.finish_reason).toBe('tool_calls');
+    expect(last.choices[0]?.delta.tool_calls).toEqual([{ index: 0, ...call }]);
+  });
+
+  it('yields no extra chunk when the message has no grammar line', async () => {
+    const prose = {
+      async *create() {
+        yield { choices: [{ delta: { content: 'hi' } }] };
+        return { output: { role: 'assistant', content: 'hi' }, usage: {}, finish_reason: 'stop' };
+      },
+      createNonStream: inner.createNonStream,
+    };
+    const gen = new GrammarToolCallLLM(prose as never, registry()).create({ messages: [] } as never);
+    let n = 0;
+    let r = await gen.next();
+    while (!r.done) {
+      n++;
+      r = await gen.next();
+    }
+    expect(n).toBe(1);
+    expect(r.value.finish_reason).toBe('stop');
   });
 
   it('leaves a message without a grammar line untouched', async () => {

@@ -13,14 +13,52 @@ type TurnStreamingEvent = TrueForgeApi.TurnStreamingEvent;
 
 type EventOf<T extends TurnStreamingEvent['type']> = Extract<TurnStreamingEvent, { type: T }>;
 
+/** Merge one delta into its message: text appends, a call starts on its name and its arguments append. */
+function fold(message: TrueForgeApi.ModelMessageEvent, delta: TrueForgeApi.ModelMessageDeltaEvent): void {
+  if (delta.content) {
+    message.content = typeof message.content === 'string' ? message.content + delta.content : delta.content;
+  }
+  if (delta.finishReason) message.finishReason = delta.finishReason;
+  for (const part of delta.toolCalls ?? []) {
+    const calls = (message.toolCalls ??= []);
+    if (part.function?.name !== undefined) {
+      if (part.id === undefined || part.toolInfo === undefined) {
+        throw new Error(`tool call delta ${String(part.index)} names ${part.function.name} without id or toolInfo`);
+      }
+      calls[part.index] = {
+        id: part.id,
+        type: 'function',
+        function: { name: part.function.name, arguments: part.function.arguments ?? '' },
+        toolInfo: part.toolInfo,
+      };
+      continue;
+    }
+    const call = calls[part.index];
+    if (call === undefined) throw new Error(`tool call delta ${String(part.index)} arrived before its name`);
+    call.function.arguments += part.function?.arguments ?? '';
+  }
+}
+
 export class EventIndex {
   readonly events: TurnStreamingEvent[] = [];
   private readonly byId = new Map<string, TurnStreamingEvent>();
 
   add(event: TurnStreamingEvent): void {
-    this.events.push(event);
-    // A delta shares its id with the `model.message` it builds up; only the whole message is indexed.
-    if (event.type !== 'model.message.delta') this.byId.set(event.id, event);
+    // The streamed `model.message` is a bare header; its text and tool calls arrive as deltas.
+    // The header is copied so each index over one stream folds into its own message.
+    const own = event.type === 'model.message' ? { ...event } : event;
+    if (own.type === 'model.message' && own.toolCalls) {
+      own.toolCalls = own.toolCalls.map((call) => ({ ...call, function: { ...call.function } }));
+    }
+    this.events.push(own);
+    if (own.type === 'model.message.delta') fold(this.message(own.id), own);
+    else this.byId.set(own.id, own);
+  }
+
+  private message(id: string): TrueForgeApi.ModelMessageEvent {
+    const event = this.byId.get(id);
+    if (event?.type !== 'model.message') throw new Error(`delta ${id} arrived before its model.message`);
+    return event;
   }
 
   /** The event a harness reference points at; a reference the harness emitted always resolves. */
