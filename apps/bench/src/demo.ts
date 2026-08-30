@@ -16,6 +16,9 @@
  * - **The round loop.** After a `deny` the target re-proposes *inside the turn that
  *   delivers the denial* — `resolveCase` opens that turn and returns only the verdict — so
  *   round 2's held call arrives through the event hook, not as a return value.
+ * - **The watcher** (`--serve`). The hold is the harness's own approval pause, which the
+ *   Bench answers instead of a person; a request typed into the acting agent's chat pauses
+ *   the same way, and the watcher finds that pause and runs the same loop on it.
  *
  * It decides nothing. Every `allow`/`deny` comes from `decide()` by way of `resolveCase`,
  * and every figure printed was computed by the measurement or by the production ledger
@@ -71,11 +74,16 @@ interface Options {
    * left to themselves, let it stand (FR-018).
    */
   guardrailsOnly: boolean;
+  /** `--serve`: send no request; watch every chat with the acting agent and answer its holds. */
+  serve: boolean;
 }
 
 export function parseOptions(argv: readonly string[]): Options {
-  return { guardrailsOnly: argv.includes('--guardrails-only') };
+  return { guardrailsOnly: argv.includes('--guardrails-only'), serve: argv.includes('--serve') };
 }
+
+/** How often the watcher looks for a new hold. */
+const WATCH_INTERVAL_MS = 2000;
 
 const out = (line: string): void => {
   console.log(line);
@@ -173,7 +181,7 @@ async function runTurn(
 
 async function run(config: Config, options: Options): Promise<void> {
   const client = createHarnessClient(config);
-  await ensureAgents(client, config, {
+  const agents = await ensureAgents(client, config, {
     target: TARGET_INSTRUCTIONS,
     evaluator: EVALUATOR_INSTRUCTIONS,
   });
@@ -192,18 +200,90 @@ async function run(config: Config, options: Options): Promise<void> {
     onEvent: benchEvents(index, approvals, out),
   };
 
-  await crossExamine(
-    {
-      bench,
-      targetSession: await openSession(client, config.target_agent_name),
-      evaluatorSession: await openSession(client, config.evaluator_agent_name),
-      index,
-      approvals,
-      replica: replicaIdentity(config),
-      emit: out,
-    },
-    options,
-  );
+  const run = { bench, index, approvals, replica: replicaIdentity(config), emit: out };
+  if (options.serve) {
+    await watch(run, options, agents.target.id);
+  } else {
+    await crossExamine(
+      {
+        ...run,
+        targetSession: await openSession(client, config.target_agent_name),
+        evaluatorSession: await openSession(client, config.evaluator_agent_name),
+      },
+      options,
+    );
+  }
+}
+
+/**
+ * Answer the holds of chats the Bench did not open (`--serve`).
+ *
+ * A turn the harness paused on `tool.approval_required` is one the acting agent's chat is
+ * waiting on. Its persisted events are the same events a stream would have carried, so they
+ * go through the same hook, and the same loop resolves the hold. Every turn is examined once.
+ */
+async function watch(
+  run: Omit<Cast, 'targetSession' | 'evaluatorSession'>,
+  options: Options,
+  targetAgentId: string,
+): Promise<never> {
+  const { client } = run.bench;
+  const seen = new Set<string>();
+  // Holds from before the watcher started are not its to answer.
+  const startedAt = new Date(run.bench.now()).toISOString();
+  run.emit(noteLine(`watching every chat with ${run.bench.config.target_agent_name} — Ctrl-C stops the Bench`));
+  for (;;) {
+    // Every list is paged; `for await` walks all pages.
+    for await (const session of await client.sessions.list({ agentId: targetAgentId })) {
+      let pending: TrueForgeApi.Turn | undefined;
+      for await (const turn of await client.sessions.listTurns(session.id)) {
+        if (
+          !seen.has(turn.id) &&
+          turn.createdAt >= startedAt &&
+          turn.state.status === 'done' &&
+          turn.state.requiredActions.some((action) => action.type === 'tool.approval_required')
+        ) {
+          pending = turn;
+          break;
+        }
+      }
+      if (pending === undefined) continue;
+      seen.add(pending.id);
+      run.emit('');
+      run.emit(noteLine(`held in chat ${session.id}`));
+      try {
+        for await (const event of await client.sessions.listTurnEvents(session.id, pending.id)) {
+          run.bench.onEvent?.(event);
+        }
+        await examineHeld(
+          {
+            ...run,
+            targetSession: session.id,
+            evaluatorSession: await openSession(client, run.bench.config.evaluator_agent_name),
+          },
+          options,
+          customerRequest(pending),
+        );
+      } catch (error) {
+        // One chat's failure does not stop the watch. The hold stays held for a person —
+        // never retried, since the decision may already have been delivered (data-model §10).
+        run.emit(noteLine(`chat ${session.id} left held: ${error instanceof Error ? error.message : String(error)}`));
+        run.approvals.length = 0;
+      }
+      // The loop resolved or ended every hold it opened in this chat; none is examined twice.
+      for await (const turn of await client.sessions.listTurns(session.id)) seen.add(turn.id);
+    }
+    await new Promise((tick) => setTimeout(tick, WATCH_INTERVAL_MS));
+  }
+}
+
+/** The request the customer typed into the held chat's turn — the charge sheet's `transcript_excerpt`. */
+export function customerRequest(turn: TrueForgeApi.Turn): string {
+  const message = turn.input?.find((item) => item.type === 'user.message');
+  if (message === undefined) throw new Error(`held turn ${turn.id} carries no customer message`);
+  const { content } = message;
+  if (typeof content === 'string') return content;
+  return content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n');
 }
 
 /**
@@ -239,11 +319,13 @@ export function benchEvents(
     index.add(event);
     if (event.type === 'tool.approval_required') approvals.push(event);
     // The figures are printed once the verdict names the measurement it rests on, so nothing
-    // is shown here that a verdict did not use.
-    // A streamed call arrives on the delta that names it; a complete message carries it whole.
+    // is shown here that a verdict did not use. A streamed call arrives by delta, so the
+    // folded message is what is read.
     if (event.type === 'model.message' || event.type === 'model.message.delta') {
-      for (const call of event.toolCalls ?? []) {
-        if (call.function?.name === 'measure' && call.id !== undefined && !announced.has(call.id)) {
+      const message = index.get(event.id);
+      if (message.type !== 'model.message') return;
+      for (const call of message.toolCalls ?? []) {
+        if (call.function.name === 'measure' && !announced.has(call.id)) {
           announced.add(call.id);
           emit(measuringLine());
         }
@@ -260,13 +342,17 @@ export function benchEvents(
  * the action is still held.
  */
 export async function crossExamine(cast: Cast, options: Options): Promise<void> {
+  // Round 1 opens with the business request; every later round's proposal arrives inside a
+  // turn `resolveCase` already opened.
+  await runTurn(cast.bench, cast.targetSession, [{ type: 'user.message', content: BUSINESS_REQUEST }]);
+  await examineHeld(cast, options, BUSINESS_REQUEST);
+}
+
+/** The rounds over whatever is held: measure, decide, and on a deny let the agent re-propose once. */
+export async function examineHeld(cast: Cast, options: Options, transcriptExcerpt: string): Promise<void> {
   const { bench, emit } = cast;
   const config = bench.config;
   const prior: ProposedAction[] = [];
-
-  // Round 1 opens with the business request; every later round's proposal arrives inside a
-  // turn `resolveCase` already opened.
-  await runTurn(bench, cast.targetSession, [{ type: 'user.message', content: BUSINESS_REQUEST }]);
 
   for (let round = 1; round <= MAX_ROUNDS; round++) {
     const approval = cast.approvals.shift();
@@ -276,7 +362,9 @@ export async function crossExamine(cast: Cast, options: Options): Promise<void> 
     }
 
     const held = correlate(approval, cast.index);
-    const caseId = `case_${String(round).padStart(3, '0')}`;
+    // Keyed by the chat as well: the watcher runs this loop once per held chat, and the
+    // double-decision guard must not mistake a new chat's round 1 for an old one's.
+    const caseId = `case_${cast.targetSession}_${String(round).padStart(3, '0')}`;
     const openedAtMs = Date.now();
 
     // Decoded here as well as inside `assembleChargeSheet`, because the four controls read
@@ -303,7 +391,7 @@ export async function crossExamine(cast: Cast, options: Options): Promise<void> 
       round: round as 1 | 2,
       held,
       guardrails,
-      transcript_excerpt: BUSINESS_REQUEST,
+      transcript_excerpt: transcriptExcerpt,
       replica: cast.replica,
     });
 
@@ -383,6 +471,8 @@ async function main(): Promise<void> {
     await run(config, options);
   } finally {
     for (const server of started) {
+      // The harness keeps its MCP connections alive; `close()` alone would wait on them.
+      server.closeAllConnections();
       await new Promise((done) => {
         server.close(() => {
           done(undefined);

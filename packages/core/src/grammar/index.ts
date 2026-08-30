@@ -176,6 +176,11 @@ export function encodeProposal(p: ProposedAction): string {
   ]);
 }
 
+/** The proposal line as the adapter split it: the action's key, then its raw fields (D-14). */
+export function proposalLine(action: ActionName, fields: readonly string[]): string {
+  return encodeLine(keyOf(PROPOSAL_KEYS, action), fields);
+}
+
 function tripleFields(t: MeasuredTriple): string[] {
   return [String(t.measured_count), dollars(t.measured_value_cents), String(t.duplicate_count)];
 }

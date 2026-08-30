@@ -49,6 +49,11 @@ The one that must close by **14:30 PDT**. Everything else is optional.
 pnpm demo
 ```
 
+The same loop answers a request typed into the TrueForge chat: run `pnpm demo -- --serve`
+in its own terminal, open a chat with `ops-support-agent` in the harness UI, and paste the
+business request. The chat shows *Under review by CROSS-EXAM…* on the tool card and never
+an Allow/Deny prompt; the trace below appears on the Bench console.
+
 **Expected** — read every line; these numbers come from the seed, never from a string in
 the verdict:
 

@@ -9,6 +9,7 @@ type Message = TrueForgeApi.ModelMessageEvent;
 
 const AT = '2026-08-29T00:00:00Z';
 const LINE = '🧾status=disputed | 7 | 840.00';
+const ARGS = '{"criteria":"status=disputed","declared_count":"7","declared_value":"840.00"}';
 
 const toolCall = (id: string, name: string, args: string): TrueForgeApi.ToolCall => ({
   id,
@@ -41,10 +42,10 @@ const index = (...events: Event[]): EventIndex => {
 };
 
 describe('correlate', () => {
-  it('walks approval_required back to the model.message for the tool name and the text', () => {
-    // The synthesised arguments deliberately disagree with the content: only the content may be used.
-    const call = toolCall('call-1', 'bulk_refund', '{"criteria":"WRONG","declared_count":"999"}');
-    const events = index(message('m1', LINE, [call]), approval('a1', [{ id: 'call-1', sourceEventId: 'm1' }]));
+  it('walks approval_required back to the model.message and rebuilds the line from the call', () => {
+    // The adapter dropped the line from the text (T051); the raw split fields are the arguments.
+    const call = toolCall('call-1', 'bulk_refund', ARGS);
+    const events = index(message('m1', '', [call]), approval('a1', [{ id: 'call-1', sourceEventId: 'm1' }]));
     expect(correlate(events.last('tool.approval_required')!, events)).toEqual({
       approval_id: 'a1',
       tool_call_id: 'call-1',
@@ -53,22 +54,18 @@ describe('correlate', () => {
     });
   });
 
-  it('joins text parts and skips refusal parts when content is an array', () => {
-    const call = toolCall('call-1', 'issue_payout', '{}');
-    const content: NonNullable<Message['content']> = [
-      { type: 'text', text: 'Proposing:' },
-      { type: 'refusal', refusal: 'no' },
-      { type: 'text', text: '💸payout_eligible=true | 342 | 418220.00' },
-    ];
+  it('keeps the fields as the adapter split them: unparsed, and absent when the model left them out', () => {
+    const call = toolCall('call-1', 'issue_payout', '{"criteria":"payout_eligible=true","declared_count":"many"}');
+    const content: NonNullable<Message['content']> = [{ type: 'text', text: 'Proposing:' }];
     const events = index(message('m1', content, [call]), approval('a1', [{ id: 'call-1', sourceEventId: 'm1' }]));
     expect(correlate(approval('a1', [{ id: 'call-1', sourceEventId: 'm1' }]), events).content).toBe(
-      'Proposing:\n💸payout_eligible=true | 342 | 418220.00',
+      '💸payout_eligible=true | many',
     );
   });
 
   it('picks the referenced message, not the last one', () => {
-    const first = message('m1', LINE, [toolCall('call-1', 'bulk_refund', '{}')]);
-    const later = message('m2', 'thinking aloud', []);
+    const first = message('m1', '', [toolCall('call-1', 'bulk_refund', ARGS)]);
+    const later = message('m2', 'thinking aloud', [toolCall('call-2', 'bulk_refund', '{"criteria":"other"}')]);
     const events = index(first, later, approval('a1', [{ id: 'call-1', sourceEventId: 'm1' }]));
     expect(correlate(events.last('tool.approval_required')!, events).content).toBe(LINE);
   });
@@ -95,12 +92,12 @@ describe('correlate against a folded stream', () => {
   it('finds the call the adapter synthesized after the text deltas', () => {
     const events = index(
       { type: 'model.message', id: 'm1', threadId: 'th', createdAt: AT },
-      { type: 'model.message.delta', id: 'm1', threadId: 'th', content: LINE, finishReason: 'stop' },
+      { type: 'model.message.delta', id: 'm1', threadId: 'th', content: '', finishReason: 'stop' },
       {
         type: 'model.message.delta',
         id: 'm1',
         threadId: 'th',
-        toolCalls: [{ index: 0, ...toolCall('call_1', 'bulk_refund', '{}') }],
+        toolCalls: [{ index: 0, ...toolCall('call_1', 'bulk_refund', ARGS) }],
         finishReason: 'tool_calls',
       },
       approval('a1', [{ id: 'call_1', sourceEventId: 'm1' }]),

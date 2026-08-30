@@ -82,7 +82,7 @@ does the action run against production.
 | Step         | What happens                                                                                                                                                                                                |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. Propose   | The agent calls an irreversible MCP tool (`bulk_refund`, `issue_payout`, `close_account`). All three are `destructive: true` under `require_approval_for_tools: ["@all"]`, so the call pauses for approval. |
-| 2. Intercept | The Bench takes the pause instead of a human. `tool.approval_required` carries only an event id, so it walks back to the preceding `model.message` to recover the tool name and arguments.                  |
+| 2. Intercept | The Bench takes the pause instead of a human: the chat shows no Allow/Deny — only *Under review by CROSS-EXAM…*. `tool.approval_required` carries only an event id, so the Bench walks back to the `model.message` and rebuilds the grammar line from the synthesised call's raw fields. |
 | 3. Measure   | `measure.py` runs the proposed criteria against the replica ledger in a local isolated executor. This is the only component allowed to produce a number.                                                  |
 | 4. Decide    | `decide()` applies five ordered rules and returns `allow`, `deny`, or `escalate`.                                                                                                                           |
 | 5. Correct   | On a denial, the agent reads the measured figures and re-proposes. The correction comes from the evidence rather than from a scripted second turn.                                                          |
@@ -150,7 +150,7 @@ What each piece actually does here:
 
 |                                                                         | Role                                                                                                                                                   |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **[TrueForge](https://github.com/truefoundry/trueforge)** (TrueFoundry) | The agent harness. Runs both agents, pauses every destructive tool call for approval, streams the events the Bench reads, and renders the verdict card |
+| **[TrueForge](https://github.com/truefoundry/trueforge)** (TrueFoundry) | The agent harness. Runs both agents, pauses every destructive tool call, streams the events the Bench reads, and shows the chat (patched: no Allow/Deny controls, no raw grammar line) |
 | **[MCP](https://modelcontextprotocol.io)** (Model Context Protocol)     | How the irreversible actions are exposed. A streamable-HTTP server publishes `bulk_refund`, `issue_payout` and `close_account`, all marked destructive |
 | **TypeScript 5.9.3** on **Node 22.14+**                                 | Everything except the measurement. ESM only, `tsc --noEmit` as the build                                                                               |
 | **Python 3**, stdlib only                                               | `measure.py`, the one script allowed to produce a number. No dependencies by design, so there is nothing to install on venue wifi                      |
@@ -273,6 +273,7 @@ export CROSSEXAM_GRAMMAR_REGISTRY_PATH=packages/core/src/grammar/registry.json
 pnpm exec trueforge
 
 pnpm demo                # one full seeded run of the denial loop
+pnpm demo -- --serve     # watch the acting agent's chats in the TrueForge UI and answer their holds
 pnpm test                # the seeded scenario x3 (determinism) + three unit suites
 pnpm lint                # eslint across the workspace
 pnpm build               # tsc --noEmit across all packages

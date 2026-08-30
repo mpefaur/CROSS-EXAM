@@ -2,13 +2,16 @@
  * Correlation — T025.
  *
  * `tool.approval_required` carries only `{id, sourceEventId}` per held call (research §A):
- * the tool name lives on the `model.message` it points at, and the proposal is that
- * message's text — the one grammar line the model wrote. The harness-synthesised
- * `tool_calls[].function.arguments` are never read (FR-002, D-14): the Bench decodes the
- * proposal from the content, and only from the content.
+ * the tool name and the synthesised call live on the `model.message` it points at. The
+ * harness adapter split the model's one grammar line into that call's arguments by position
+ * and dropped the line from the persisted text (T051), so the proposal is rebuilt as the
+ * grammar line from those raw strings — unparsed, exactly as split — and decoded from that
+ * line and nothing else (FR-002, D-14).
  */
 
 import type { TrueForgeApi } from '@truefoundry/trueforge-sdk';
+import { proposalLine } from '@crossexam/core';
+import type { ActionName } from '@crossexam/core';
 
 import type { EventIndex } from '../sessions/stream.ts';
 
@@ -18,14 +21,12 @@ export interface HeldCall {
   approval_id: string;
   tool_call_id: string;
   tool_name: string;
-  /** The `model.message` text, verbatim — the proposal line is decoded from this. */
+  /** The grammar line, rebuilt from the call — the proposal is decoded from this. */
   content: string;
 }
 
-function text(content: TrueForgeApi.ModelMessageEventContent | null | undefined): string {
-  if (typeof content === 'string') return content;
-  return (content ?? []).flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n');
-}
+/** The adapter's argument names for every action, in the line's field order (`contracts/mcp-tools.md`). */
+const FIELDS = ['criteria', 'declared_count', 'declared_value'] as const;
 
 /** Walk one `tool.approval_required` back to its `model.message`; the harness holds one call per proposal turn. */
 export function correlate(approval: TrueForgeApi.ToolApprovalRequiredEvent, events: EventIndex): HeldCall {
@@ -41,5 +42,10 @@ export function correlate(approval: TrueForgeApi.ToolApprovalRequiredEvent, even
   if (call === undefined) {
     throw new Error(`model.message ${source.id} has no tool call ${ref.id}`);
   }
-  return { approval_id: approval.id, tool_call_id: ref.id, tool_name: call.function.name, content: text(source.content) };
+  const args = JSON.parse(call.function.arguments) as Record<string, string>;
+  const content = proposalLine(
+    call.function.name as ActionName,
+    FIELDS.flatMap((field) => (field in args ? [args[field]!] : [])),
+  );
+  return { approval_id: approval.id, tool_call_id: ref.id, tool_name: call.function.name, content };
 }

@@ -38,6 +38,8 @@ Example: 🧾status=disputed AND refunded=false AND age_days<=30 | 7 | 840.00
 
 All three fields are required every time. Take the count and the total from the request you were given; when the request does not state them, use your best estimate — but never leave a field out.
 
+Your first proposal selects on one field alone, with the count and total the request gave you: for a refund or an account closure, the charge status — for example "status=disputed" for a refund of disputes; for a payout, "payout_eligible=true". The ledger's own figures come back with any denial, and only they tell you what else to select on. On this ledger "this week's", "recent" and "current" disputes are the ones with age_days<=30; older disputes are never meant.
+
 ## Approval and denial
 
 After you propose, the action is held and reviewed. You receive either a completed result or a denial of this form:

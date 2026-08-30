@@ -89,9 +89,16 @@ describe('stripGrammarFromRequest (inbound)', () => {
       { role: 'user', content: 'refund disputed' },
       {
         role: 'assistant',
-        content: '🧾status=disputed | 7 | 840.00',
+        content: '',
         tool_calls: [
-          { id: 'call_g', type: 'function', function: { name: 'bulk_refund', arguments: '{}' } },
+          {
+            id: 'call_g',
+            type: 'function',
+            function: {
+              name: 'bulk_refund',
+              arguments: '{"criteria":"status=disputed","declared_count":"7","declared_value":"840.00"}',
+            },
+          },
           { id: 'call_n', type: 'function', function: { name: 'create_sub_agent', arguments: '{}' } },
         ],
       },
@@ -107,10 +114,11 @@ describe('stripGrammarFromRequest (inbound)', () => {
     ]);
   });
 
-  it('drops grammar tool_calls and turns their results into user text; native ones untouched', () => {
+  it('drops grammar tool_calls, writes their line back into the text, and turns their results into user text', () => {
     const out = stripGrammarFromRequest(body, registry());
     const [, , assistant, denied, native] = out.messages as Array<Record<string, unknown>>;
     expect((assistant?.tool_calls as Array<{ id: string }>).map((c) => c.id)).toEqual(['call_n']);
+    expect(assistant?.content).toBe('🧾status=disputed | 7 | 840.00');
     expect(denied).toEqual({ role: 'user', content: '{"error":"User denied tool call: too many"}' });
     expect(native?.role).toBe('tool');
   });
@@ -196,7 +204,7 @@ describe('GrammarToolCallLLM', () => {
   // The fixture is a structural double; the harness types are far wider than the test needs.
   const llm = new GrammarToolCallLLM(inner as never, registry());
 
-  it('re-yields every chunk and rewrites only the final message', async () => {
+  it('holds back the grammar line, strips it from the message, and yields the call as the last chunk', async () => {
     const gen = llm.create({ messages: [], tools: [{ type: 'function', function: { name: 'bulk_refund' } }] } as never);
     const chunks: unknown[] = [];
     let r = await gen.next();
@@ -204,13 +212,14 @@ describe('GrammarToolCallLLM', () => {
       chunks.push(r.value);
       r = await gen.next();
     }
-    expect(chunks).toHaveLength(3);
+    expect(chunks).toHaveLength(1);
     expect(r.value.finish_reason).toBe('tool_calls');
     const call = r.value.output.tool_calls?.[0];
     expect(call?.function.name).toBe('bulk_refund');
-    expect(r.value.output.content).toBe('🧾status=disputed | 7 | 840.00');
+    expect(call?.function.arguments).toBe('{"criteria":"status=disputed","declared_count":"7","declared_value":"840.00"}');
+    expect(r.value.output.content).toBe('');
     // The SSE deltas come from the chunks, so the synthesized call goes out as the last one too.
-    const last = chunks[2] as { choices: { delta: { tool_calls: unknown[] }; finish_reason: string }[] };
+    const last = chunks[0] as { choices: { delta: { tool_calls: unknown[] }; finish_reason: string }[] };
     expect(last.choices[0]?.finish_reason).toBe('tool_calls');
     expect(last.choices[0]?.delta.tool_calls).toEqual([{ index: 0, ...call }]);
   });
@@ -232,6 +241,63 @@ describe('GrammarToolCallLLM', () => {
     }
     expect(n).toBe(1);
     expect(r.value.finish_reason).toBe('stop');
+  });
+
+  /** Drain `create` into its chunks and its return value. */
+  async function drain(llm: GrammarToolCallLLM): Promise<{ contents: unknown[]; result: { output: { content?: unknown } } }> {
+    const gen = llm.create({ messages: [] } as never);
+    const contents: unknown[] = [];
+    let r = await gen.next();
+    while (!r.done) {
+      contents.push((r.value as { choices: { delta: { content?: unknown } }[] }).choices[0]?.delta.content);
+      r = await gen.next();
+    }
+    return { contents, result: r.value as never };
+  }
+
+  it('drops the grammar line from the stream once its newline confirms it, and streams the rest', async () => {
+    const twoLines = {
+      async *create() {
+        yield { choices: [{ delta: { content: '🧾status=disputed | 7 | 840.00' } }] };
+        yield { choices: [{ delta: { content: '\nDone.' } }] };
+        return { output: { role: 'assistant', content: '🧾status=disputed | 7 | 840.00\nDone.' }, usage: {}, finish_reason: 'stop' };
+      },
+      createNonStream: inner.createNonStream,
+    };
+    const { contents, result } = await drain(new GrammarToolCallLLM(twoLines as never, registry()));
+    expect(contents).toEqual(['Done.', undefined]);
+    expect(result.output.content).toBe('Done.');
+  });
+
+  it('holds a grammar line that follows prose, so it never streams (Qodo #51 finding 6)', async () => {
+    const prosed = {
+      async *create() {
+        yield { choices: [{ delta: { content: 'Proposing:\n🧾status' } }] };
+        yield { choices: [{ delta: { content: '=disputed | 7 | 840.00' } }] };
+        return { output: { role: 'assistant', content: 'Proposing:\n🧾status=disputed | 7 | 840.00' }, usage: {}, finish_reason: 'stop' };
+      },
+      createNonStream: inner.createNonStream,
+    };
+    const { contents, result } = await drain(new GrammarToolCallLLM(prosed as never, registry()));
+    expect(contents).toEqual(['Proposing:\n', undefined]);
+    expect(result.output.content).toBe('Proposing:');
+  });
+
+  it('releases a held line when no call is synthesised after all', async () => {
+    const native = {
+      async *create() {
+        yield { choices: [{ delta: { content: '🧾status=disputed | 7 | 840.00' } }] };
+        return {
+          output: { role: 'assistant', content: '🧾status=disputed | 7 | 840.00', tool_calls: [{ id: 'n' }] },
+          usage: {},
+          finish_reason: 'tool_calls',
+        };
+      },
+      createNonStream: inner.createNonStream,
+    };
+    const { contents, result } = await drain(new GrammarToolCallLLM(native as never, registry()));
+    expect(contents).toEqual(['🧾status=disputed | 7 | 840.00']);
+    expect(result.output.content).toBe('🧾status=disputed | 7 | 840.00');
   });
 
   it('leaves a message without a grammar line untouched', async () => {

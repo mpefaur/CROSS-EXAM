@@ -28,4 +28,10 @@ describe('parseOptions', () => {
     expect(parseOptions(['--guardrails-only=true']).guardrailsOnly).toBe(false);
     expect(parseOptions(['guardrails-only']).guardrailsOnly).toBe(false);
   });
+
+  it('reads --serve on its own', () => {
+    expect(parseOptions(['--serve']).serve).toBe(true);
+    expect(parseOptions(['--serve']).guardrailsOnly).toBe(false);
+    expect(parseOptions([]).serve).toBe(false);
+  });
 });
