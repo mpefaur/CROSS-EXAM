@@ -44,8 +44,8 @@ export class EventIndex {
   private readonly byId = new Map<string, TurnStreamingEvent>();
 
   add(event: TurnStreamingEvent): void {
-    // The streamed `model.message` is a bare header; its text and tool calls arrive as deltas.
-    // The header is copied so each index over one stream folds into its own message.
+    // The streamed `model.message` is a bare header; its text and tool calls arrive as deltas
+    // and are folded into this index's own copy, so two indexes over one stream fold once each.
     const own = event.type === 'model.message' ? { ...event } : event;
     if (own.type === 'model.message' && own.toolCalls) {
       own.toolCalls = own.toolCalls.map((call) => ({ ...call, function: { ...call.function } }));
